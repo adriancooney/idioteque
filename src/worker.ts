@@ -1,5 +1,4 @@
 import { map } from "bluebird";
-import { compact, uniq } from "lodash";
 import { defaultDispatcher } from "./dispatcher";
 import { WorkerError } from "./errors";
 import { defaultExecutor } from "./executor";
@@ -65,7 +64,7 @@ export function createWorker<T extends { type: string }, U>(
     event: T,
     context: WorkerExecutionContext
   ): Promise<void> {
-    const errors = compact(
+    const errors = (
       await map(
         functions,
         (func) => dispatchEventToFunction(func, event, context),
@@ -73,7 +72,7 @@ export function createWorker<T extends { type: string }, U>(
           concurrency: concurrency || 3,
         }
       )
-    );
+    ).filter(Boolean);
 
     if (errors.length === 1) {
       throw errors[0];
@@ -402,8 +401,11 @@ function isNonRetryableError(error: unknown): boolean {
 
 function assertFunctionIdsUnique(functions: WorkerFunction[]): void {
   const functionIds = functions.map((func) => func.id);
+  const uniqueFunctionIds = functionIds.filter(
+    (functionId, i, all) => all.indexOf(functionId) === i
+  );
 
-  if (uniq(functionIds).length !== functionIds.length) {
+  if (uniqueFunctionIds.length !== functionIds.length) {
     throw new Error("One or more functions with the same id");
   }
 }

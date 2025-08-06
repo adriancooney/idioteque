@@ -7,9 +7,9 @@
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
-      "require": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "require": "./dist/index.js"
     }
   },
   "files": ["dist"],
@@ -32,11 +32,13 @@
   "license": "MIT",
   "dependencies": {
     "@standard-schema/spec": "^1.0.0",
+    "bluebird": "^3.7.2",
     "zod": "^3.24.1"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
     "@changesets/cli": "^2.29.5",
+    "@types/bluebird": "^3.5.42",
     "@types/jest": "^29.5.14",
     "@types/node": "^22.12.0",
     "jest": "^30.0.5",
