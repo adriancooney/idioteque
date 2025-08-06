@@ -7,27 +7,25 @@ const errorResponse = jsonString.pipe(WorkerErrorResponse);
 export const defaultDispatcher = (async (request: Request) => {
   const controller = new AbortController();
 
-  try {
-    const res = await fetch(request, {
-      signal: controller.signal,
-    });
+  const res = await fetch(request, {
+    signal: controller.signal,
+    // @ts-expect-error
+    cache: "no-store",
+  });
 
-    if (!res.ok) {
-      const respText = await res.text();
-      const result = errorResponse.safeParse(respText);
+  if (!res.ok) {
+    const respText = await res.text();
+    const result = errorResponse.safeParse(respText);
 
-      if (result.success) {
-        const error = new WorkerError(result.data.message);
-        error.stack = result.data.stack;
-        throw error;
-      }
-
-      throw new WorkerError(
-        `Failed to publish event to ${request.url}: ${res.status} ${res.statusText} ${respText}`
-      );
+    if (result.success) {
+      const error = new WorkerError(result.data.message);
+      error.stack = result.data.stack;
+      throw error;
     }
-  } finally {
-    controller.abort();
+
+    throw new WorkerError(
+      `Failed to publish event to ${request.url}: ${res.status} ${res.statusText} ${respText}`
+    );
   }
 }) satisfies WorkerDispatcher;
 

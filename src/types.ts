@@ -58,13 +58,13 @@ export interface WorkerStore {
 export interface WorkerOptions<T extends WorkerEvent = WorkerEvent, D = any> {
   url: string;
   eventsSchema: StandardSchemaV1<T>;
-  concurrency?: number;
+  store: WorkerStore;
   onError?: (error: unknown) => Promise<unknown> | unknown;
   metrics?: WorkerMetrics;
   logger?: WorkerLogger;
   executor?: WorkerExecutor;
   dispatcher?: WorkerDispatcher<D>;
-  store?: WorkerStore;
+  concurrency?: number;
 }
 
 export type WorkerExecutionContext = z.TypeOf<typeof WorkerExecutionContext>;
