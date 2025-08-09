@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { createDangerousMemoryStore } from "./store";
 import type { Worker, WorkerMount } from "./types";
 import { createWorker } from "./worker";
 
@@ -27,6 +28,7 @@ describe("worker", () => {
           type: z.literal("bar"),
         }),
       ]),
+      store: createDangerousMemoryStore(),
       dispatcher: dispatcherMock,
     });
 

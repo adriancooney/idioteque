@@ -1,5 +1,4 @@
 import { map } from "bluebird";
-import { defaultDispatcher } from "./dispatcher";
 import { WorkerError } from "./errors";
 import { defaultExecutor } from "./executor";
 import { defaultWorkerLogger } from "./logger";
@@ -28,7 +27,7 @@ export function createWorker<T extends { type: string }, U>(
     metrics = defaultWorkerMetrics,
     logger = defaultWorkerLogger,
     executor = defaultExecutor,
-    dispatcher = defaultDispatcher,
+    dispatcher,
     store,
   } = workerOptions;
 
@@ -48,7 +47,7 @@ export function createWorker<T extends { type: string }, U>(
       } satisfies WorkerPublishRequestBody),
     });
 
-    await dispatcher(request, dispatcherOptions);
+    await dispatcher.send(request, dispatcherOptions);
 
     if (!context) {
       logger.debug(">> Published worker event", event);

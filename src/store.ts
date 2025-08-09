@@ -14,7 +14,7 @@ interface RedisImpl {
   del: (key: string) => Promise<unknown>;
 }
 
-export function createRedisWorkerStore(redis: RedisImpl): WorkerStore {
+export function createRedisStore(redis: RedisImpl): WorkerStore {
   return {
     async getExecutionTaskResult(executionId, taskId) {
       const result = await redis.hget(`${executionId}-results`, taskId);
@@ -48,7 +48,7 @@ export function createRedisWorkerStore(redis: RedisImpl): WorkerStore {
   };
 }
 
-export function createDangerousMemoryWorkerStore(): WorkerStore {
+export function createDangerousMemoryStore(): WorkerStore {
   const store: Record<
     string,
     Record<string, { value?: any; transaction?: boolean }>
@@ -74,7 +74,7 @@ export function createDangerousMemoryWorkerStore(): WorkerStore {
   };
 }
 
-export function createFileSystemWorkerStore(storeDir: string): WorkerStore {
+export function createFileSystemStore(storeDir: string): WorkerStore {
   const getExecutionDir = (executionId: string) =>
     path.join(storeDir, executionId);
 

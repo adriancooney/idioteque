@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { syncDispatcher } from "./dispatcher";
+import { createDangerousFetchSyncDispatcher } from "./dispatcher";
 import type {
   Worker,
   WorkerFunction,
@@ -11,6 +11,8 @@ export function setupWorker<T extends { type: string }>(
   worker: Worker<T>,
   functions: WorkerFunction[]
 ) {
+  const port = Math.round(8000 + 2000 * Math.random());
+  const url = `https://localhost:${port}`;
   let mount: WorkerMount<T>;
   let _workerOptions: WorkerOptions<T>;
 
@@ -24,7 +26,7 @@ export function setupWorker<T extends { type: string }>(
     req.on("data", (chunk) => chunks.push(chunk));
     req.on("end", async () => {
       const response = await mount.POST(
-        new Request("https://localhost:8546", {
+        new Request(url, {
           method: "POST",
           body: Buffer.concat(chunks).toString(),
         })
@@ -41,9 +43,9 @@ export function setupWorker<T extends { type: string }>(
     mount = worker.mount({ functions, sync: true });
     server.listen(8546);
     worker.configure({
-      url: "http://localhost:8546",
+      url,
       concurrency: 1,
-      dispatcher: syncDispatcher,
+      dispatcher: createDangerousFetchSyncDispatcher(),
     });
   });
 

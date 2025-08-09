@@ -59,11 +59,11 @@ export interface WorkerOptions<T extends WorkerEvent = WorkerEvent, D = any> {
   url: string;
   eventsSchema: StandardSchemaV1<T>;
   store: WorkerStore;
+  dispatcher: WorkerDispatcher<D>;
   onError?: (error: unknown) => Promise<unknown> | unknown;
   metrics?: WorkerMetrics;
   logger?: WorkerLogger;
   executor?: WorkerExecutor;
-  dispatcher?: WorkerDispatcher<D>;
   concurrency?: number;
 }
 
@@ -147,7 +147,7 @@ export type WorkerExecutor = (
   workerOptions: WorkerOptions
 ) => Promise<void>;
 
-export type WorkerDispatcher<Options = any> = (
-  request: Request,
-  options?: Options
-) => Promise<void>;
+export type WorkerDispatcher<Options = any> = {
+  send: (request: Request, options?: Options) => Promise<void>;
+  receive: (request: Request, options?: Options) => Promise<unknown>;
+};
