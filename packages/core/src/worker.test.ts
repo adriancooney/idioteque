@@ -1,3 +1,4 @@
+import { setTimeout } from "node:timers/promises";
 import { z } from "zod";
 import { createDangerousMemoryStore } from "./store";
 import type { Worker, WorkerMount } from "./types";
@@ -124,8 +125,8 @@ describe("worker", () => {
     let aExecution2ErrorMock: JestMockAny;
     let aExecution3Mock: JestMockAny;
 
-    let transactions: Record<string, any>;
-    let executions: Record<string, any>;
+    let transactions: Record<string, Record<string, any>>;
+    let executions: Record<string, Record<string, any>>;
 
     beforeEach(() => {
       dispatcherMock = jest.fn();
@@ -149,24 +150,29 @@ describe("worker", () => {
         dispatcher: { dispatch: dispatcherMock },
         store: {
           async getExecutionTaskResult(executionId, resultId) {
-            return executions[`${executionId}-${resultId}`];
+            return executions[executionId]?.[resultId];
           },
           async isExecutionTaskInProgress(executionId, resultId) {
-            return transactions[`${executionId}-${resultId}`] || false;
+            return transactions[executionId]?.[resultId] || false;
           },
           async beginExecutionTask(executionId, resultId) {
-            transactions[`${executionId}-${resultId}`] = true;
+            transactions[executionId] ??= {};
+            transactions[executionId][resultId] = true;
           },
           async commitExecutionTaskResult(executionId, resultId, value) {
-            delete transactions[`${executionId}-${resultId}`];
-            executions[`${executionId}-${resultId}`] = value;
+            delete transactions[executionId]?.[resultId];
+            executions[executionId] ??= {};
+            executions[executionId][resultId] = value;
           },
           async disposeExecution(executionId) {
-            for (const key of Object.keys(executions)) {
-              if (key.startsWith(executionId)) {
-                delete executions[key];
-              }
+            if (!(executionId in executions)) {
+              throw new Error(
+                `Execution '${executionId}' not found, cannot dispose`
+              );
             }
+
+            delete transactions[executionId];
+            delete executions[executionId];
           },
         },
       });
@@ -203,7 +209,7 @@ describe("worker", () => {
         );
 
         expect(transactions).toEqual({
-          "execution1-astep1": true,
+          execution1: { astep1: true },
         });
 
         expect(executions).toEqual({});
@@ -245,7 +251,7 @@ describe("worker", () => {
 
         expect(transactions).toEqual({});
         expect(executions).toEqual({
-          "execution1-astep1": "astep1-result",
+          execution1: { astep1: "astep1-result" },
         });
 
         expect(aExecution1Mock).toHaveBeenCalledTimes(1);
@@ -272,7 +278,7 @@ describe("worker", () => {
 
       it("publishes event to begin execution for n", async () => {
         executions = {
-          "execution1-astep1": "astep1-result",
+          execution1: { astep1: "astep1-result" },
         };
 
         await workerMount.execute(
@@ -287,10 +293,10 @@ describe("worker", () => {
         );
 
         expect(transactions).toEqual({
-          "execution1-astep2": true,
+          execution1: { astep2: true },
         });
         expect(executions).toEqual({
-          "execution1-astep1": "astep1-result",
+          execution1: { astep1: "astep1-result" },
         });
 
         expect(aExecution1Mock).not.toHaveBeenCalled();
@@ -317,7 +323,7 @@ describe("worker", () => {
         aExecution2Mock.mockResolvedValueOnce("astep2-result");
 
         executions = {
-          "execution1-astep1": "astep1-result",
+          execution1: { astep1: "astep1-result" },
         };
 
         await workerMount.execute(
@@ -334,8 +340,10 @@ describe("worker", () => {
 
         expect(transactions).toEqual({});
         expect(executions).toEqual({
-          "execution1-astep1": "astep1-result",
-          "execution1-astep2": "astep2-result",
+          execution1: {
+            astep1: "astep1-result",
+            astep2: "astep2-result",
+          },
         });
 
         expect(aExecution1Mock).not.toHaveBeenCalled();
@@ -363,8 +371,10 @@ describe("worker", () => {
         aExecution2Mock.mockResolvedValueOnce("astep2-result");
 
         executions = {
-          "execution1-astep1": "astep1-result",
-          "execution1-astep2": "astep2-result",
+          execution1: {
+            astep1: "astep1-result",
+            astep2: "astep2-result",
+          },
         };
 
         await workerMount.execute(
@@ -393,7 +403,7 @@ describe("worker", () => {
 
       it("should not execute step if it is in progress", async () => {
         transactions = {
-          "execution1-astep1": true,
+          execution1: { astep1: true },
         };
 
         await workerMount.execute(
@@ -408,7 +418,7 @@ describe("worker", () => {
         );
 
         expect(transactions).toEqual({
-          "execution1-astep1": true,
+          execution1: { astep1: true },
         });
         expect(executions).toEqual({});
 
@@ -421,7 +431,7 @@ describe("worker", () => {
         aExecution2Mock.mockRejectedValue(error);
 
         executions = {
-          "execution1-astep1": "astep1-result",
+          execution1: { astep1: "astep1-result" },
         };
 
         await workerMount.execute(
@@ -437,6 +447,33 @@ describe("worker", () => {
         );
 
         expect(aExecution2ErrorMock).toHaveBeenCalledWith(error);
+      });
+
+      describe("with simultaneous functions", () => {
+        beforeEach(() => {
+          workerMount = worker.mount({
+            functions: [
+              worker.createFunction("a1", "foo", aExecution1Mock),
+              worker.createFunction("a2", "foo", aExecution2Mock),
+            ],
+          });
+
+          aExecution2Mock.mockImplementation(() => setTimeout(100));
+        });
+
+        it("should dispose of exection when all functions are complete", async () => {
+          executions = {};
+
+          await workerMount.execute(
+            {
+              type: "foo",
+            },
+            {
+              timestamp,
+              executionId: "execution1",
+            }
+          );
+        });
       });
     });
   });
