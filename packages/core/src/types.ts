@@ -28,8 +28,8 @@ export interface WorkerFunction {
 }
 
 export interface WorkerMount<T extends WorkerEvent = WorkerEvent> {
+  process(data: unknown): Promise<void>;
   execute(event: T, context?: WorkerExecutionContext): Promise<void>;
-  POST: (request: Request) => Promise<Response>;
 }
 
 export interface WorkerStore {
@@ -56,7 +56,6 @@ export interface WorkerStore {
 }
 
 export interface WorkerOptions<T extends WorkerEvent = WorkerEvent, D = any> {
-  url: string;
   eventsSchema: StandardSchemaV1<T>;
   store: WorkerStore;
   dispatcher: WorkerDispatcher<D>;
@@ -81,14 +80,6 @@ export type WorkerPublishRequestBody = z.TypeOf<
 export const WorkerPublishRequestBody = z.object({
   event: z.unknown(),
   context: WorkerExecutionContext.optional(),
-});
-
-export type WorkerErrorResponse = z.TypeOf<typeof WorkerErrorResponse>;
-export const WorkerErrorResponse = z.object({
-  error: z.literal(true),
-  message: z.string(),
-  stack: z.string().optional(),
-  isNonRetryable: z.boolean(),
 });
 
 export interface Worker<T extends WorkerEvent, U = any> {
@@ -148,6 +139,5 @@ export type WorkerExecutor = (
 ) => Promise<void>;
 
 export type WorkerDispatcher<Options = any> = {
-  send: (request: Request, options?: Options) => Promise<void>;
-  receive: (request: Request, options?: Options) => Promise<unknown>;
+  dispatch: (data: string, options?: Options) => Promise<void>;
 };

@@ -1,54 +1,24 @@
 {
-  "name": "belts",
-  "version": "0.1.0",
-  "description": "Worker library for distributed task execution",
-  "main": "dist/index.js",
-  "module": "dist/index.mjs",
-  "types": "dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.js"
-    }
-  },
-  "files": ["dist"],
+  "name": "belt-monorepo",
+  "private": true,
   "scripts": {
-    "build": "tsup",
-    "dev": "tsup --watch",
-    "test": "jest",
-    "lint": "biome lint",
-    "format": "biome format --write",
-    "check": "biome check",
-    "clean": "rm -rf dist",
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "format": "turbo run format",
+    "check": "turbo run check",
+    "clean": "turbo run clean",
     "changeset": "changeset",
     "version": "changeset version",
-    "release": "changeset publish",
-    "sync-deps": "pnpm install --ignore-workspace",
-    "preversion": "pnpm run sync-deps"
-  },
-  "keywords": ["worker", "queue", "background-jobs", "distributed"],
-  "author": "Adrian",
-  "license": "MIT",
-  "dependencies": {
-    "@standard-schema/spec": "^1.0.0",
-    "bluebird": "^3.7.2",
-    "zod": "^3.24.1"
+    "release": "changeset publish"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
     "@changesets/cli": "^2.29.5",
-    "@types/bluebird": "^3.5.42",
-    "@types/jest": "^29.5.14",
-    "@types/node": "^22.12.0",
-    "jest": "^30.0.5",
     "lefthook": "^1.12.2",
-    "ts-jest": "^29.4.0",
-    "tsup": "^8.0.0",
+    "turbo": "^2.5.5",
     "typescript": "^5.8.2"
-  },
-  "peerDependencies": {
-    "typescript": ">=5.0.0"
   },
   "packageManager": "pnpm@9.9.0+sha512.60c18acd138bff695d339be6ad13f7e936eea6745660d4cc4a776d5247c540d0edee1a563695c183a66eb917ef88f2b4feb1fc25f32a7adcadc7aaf3438e99c1"
 }

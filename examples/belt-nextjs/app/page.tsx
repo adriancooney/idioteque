@@ -9,7 +9,7 @@ async function placeOrder() {
 export default function Home() {
   return (
     <div style={{ padding: "2rem", fontFamily: "system-ui" }}>
-      <h1>Belts Event Demo</h1>
+      <h1>Belt Event Demo</h1>
       <p>Click to place an order and see async processing in action:</p>
 
       <div

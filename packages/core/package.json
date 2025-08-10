@@ -1,0 +1,45 @@
+{
+  "name": "@belt/core",
+  "version": "0.0.1",
+  "description": "Worker library for distributed task execution",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "jest",
+    "lint": "biome lint",
+    "format": "biome format --write",
+    "check": "biome check",
+    "clean": "rm -rf dist"
+  },
+  "keywords": ["worker", "queue", "background-jobs", "distributed"],
+  "author": "Adrian",
+  "license": "MIT",
+  "dependencies": {
+    "@standard-schema/spec": "^1.0.0",
+    "bluebird": "^3.7.2",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/bluebird": "^3.5.42",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.12.0",
+    "jest": "^30.0.5",
+    "ts-jest": "^29.4.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.8.2"
+  },
+  "peerDependencies": {
+    "typescript": ">=5.0.0"
+  }
+}

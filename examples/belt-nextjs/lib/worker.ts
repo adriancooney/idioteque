@@ -1,6 +1,10 @@
 import os from "node:os";
 import path from "node:path";
-import { createFileSystemWorkerStore, createWorker } from "belts";
+import {
+  createDangerousFetchDispatcher,
+  createFileSystemStore,
+  createWorker,
+} from "@belt/core";
 import z from "zod";
 
 const EventsSchema = z.discriminatedUnion("type", [
@@ -14,15 +18,16 @@ const EventsSchema = z.discriminatedUnion("type", [
   }),
 ]);
 
-export const worker = createWorker({
-  url: `${
+export const dispatcher = createDangerousFetchDispatcher({
+  mountUrl: `${
     process.env.NODE_ENV === "production"
       ? `https://${process.env.VERCEL_URL}`
       : "http://localhost:3000"
   }/api/worker`,
+});
 
+export const worker = createWorker({
   eventsSchema: EventsSchema,
-  store: createFileSystemWorkerStore(
-    path.join(os.tmpdir(), "belts-worker-store")
-  ),
+  store: createFileSystemStore(path.join(os.tmpdir(), "belt-worker-store")),
+  dispatcher,
 });

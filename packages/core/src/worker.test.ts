@@ -19,7 +19,6 @@ describe("worker", () => {
     barWorkerFunctionMock = jest.fn();
 
     worker = createWorker({
-      url: "https://foo.bar",
       eventsSchema: z.discriminatedUnion("type", [
         z.object({
           type: z.literal("foo"),
@@ -29,7 +28,7 @@ describe("worker", () => {
         }),
       ]),
       store: createDangerousMemoryStore(),
-      dispatcher: dispatcherMock,
+      dispatcher: { dispatch: dispatcherMock },
     });
 
     workerMount = worker.mount({
@@ -56,9 +55,8 @@ describe("worker", () => {
 
       expect(dispatcherMock).toHaveBeenCalled();
 
-      const req = dispatcherMock.mock.calls[0][0] as Request;
-      expect(req.url).toEqual("https://foo.bar/");
-      expect(await req.json()).toEqual({
+      const req = dispatcherMock.mock.calls[0][0];
+      expect(JSON.parse(req)).toEqual({
         event: {
           type: "foo",
         },
@@ -75,7 +73,7 @@ describe("worker", () => {
         }
       );
 
-      expect(dispatcherMock).toHaveBeenCalledWith(expect.any(Request), {
+      expect(dispatcherMock).toHaveBeenCalledWith(expect.any(String), {
         retries: 1,
       });
     });
@@ -120,77 +118,6 @@ describe("worker", () => {
     });
   });
 
-  describe("WorkerMount#POST", () => {
-    it("executes the matching function", async () => {
-      const request = new Request("https://foo.bar", {
-        method: "POST",
-        body: JSON.stringify({
-          event: { type: "foo" },
-        }),
-      });
-
-      const res = await workerMount.POST(request);
-
-      expect(await res.text()).toEqual("ACKDONE");
-
-      expect(fooWorkerFunctionMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          type: "foo",
-        }),
-        {
-          execute: expect.any(Function),
-          executionId: expect.any(String),
-          timestamp: expect.any(Number),
-        }
-      );
-
-      expect(barWorkerFunctionMock).not.toHaveBeenCalled();
-    });
-
-    it("returns 400 for invalid event", async () => {
-      const request = new Request("https://foo.bar", {
-        method: "POST",
-        body: JSON.stringify({ type: "unknown" }),
-      });
-
-      const res = await workerMount.POST(request);
-
-      expect(res.status).toEqual(400);
-      expect(await res.json()).toEqual(
-        expect.objectContaining({
-          error: true,
-        })
-      );
-    });
-
-    describe("with failing foo worker function", () => {
-      let error: Error;
-
-      beforeEach(() => {
-        error = new Error("Oh no!");
-        fooWorkerFunctionMock.mockRejectedValue(error);
-      });
-
-      it("gracefully handles worker errors", async () => {
-        const request = new Request("https://foo.bar", {
-          method: "POST",
-          body: JSON.stringify({
-            event: {
-              type: "foo",
-            },
-          }),
-        });
-
-        const res = await workerMount.POST(request);
-
-        expect(res.status).toEqual(200);
-
-        await expect(() => res.json()).rejects.toEqual(error);
-        expect(fooWorkerFunctionMock).toHaveBeenCalledTimes(1);
-      });
-    });
-  });
-
   describe("with execute", () => {
     let aExecution1Mock: JestMockAny;
     let aExecution2Mock: JestMockAny;
@@ -211,7 +138,6 @@ describe("worker", () => {
       executions = {};
 
       worker = createWorker({
-        url: "https://foo.bar",
         eventsSchema: z.discriminatedUnion("type", [
           z.object({
             type: z.literal("foo"),
@@ -220,7 +146,7 @@ describe("worker", () => {
             type: z.literal("bar"),
           }),
         ]),
-        dispatcher: dispatcherMock,
+        dispatcher: { dispatch: dispatcherMock },
         store: {
           async getExecutionTaskResult(executionId, resultId) {
             return executions[`${executionId}-${resultId}`];
@@ -287,9 +213,9 @@ describe("worker", () => {
 
         expect(dispatcherMock).toHaveBeenCalledTimes(1);
 
-        const request = dispatcherMock.mock.calls[0][0] as Request;
+        const request = dispatcherMock.mock.calls[0][0];
 
-        expect(await request.json()).toEqual({
+        expect(JSON.parse(request)).toEqual({
           event: {
             type: "foo",
           },
@@ -330,9 +256,9 @@ describe("worker", () => {
 
         expect(dispatcherMock).toHaveBeenCalledTimes(1);
 
-        const request = dispatcherMock.mock.calls[0][0] as Request;
+        const request = dispatcherMock.mock.calls[0][0];
 
-        expect(await request.json()).toEqual({
+        expect(JSON.parse(request)).toEqual({
           event: {
             type: "foo",
           },
@@ -372,9 +298,9 @@ describe("worker", () => {
 
         expect(dispatcherMock).toHaveBeenCalledTimes(1);
 
-        const request = dispatcherMock.mock.calls[0][0] as Request;
+        const request = dispatcherMock.mock.calls[0][0];
 
-        expect(await request.json()).toEqual({
+        expect(JSON.parse(request)).toEqual({
           event: {
             type: "foo",
           },
@@ -419,9 +345,9 @@ describe("worker", () => {
 
         expect(dispatcherMock).toHaveBeenCalledTimes(1);
 
-        const request = dispatcherMock.mock.calls[0][0] as Request;
+        const request = dispatcherMock.mock.calls[0][0];
 
-        expect(await request.json()).toEqual({
+        expect(JSON.parse(request)).toEqual({
           event: {
             type: "foo",
           },

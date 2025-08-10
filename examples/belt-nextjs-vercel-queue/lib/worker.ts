@@ -4,7 +4,7 @@ import {
   createFileSystemWorkerStore,
   createVercelQueueDispatcher,
   createWorker,
-} from "belts";
+} from "@belt/core";
 import z from "zod";
 
 const EventsSchema = z.discriminatedUnion("type", [
@@ -27,7 +27,7 @@ export const worker = createWorker({
 
   eventsSchema: EventsSchema,
   store: createFileSystemWorkerStore(
-    path.join(os.tmpdir(), "belts-worker-store")
+    path.join(os.tmpdir(), "belt-worker-store")
   ),
   dispatcher: createVercelQueueDispatcher(),
 });
