@@ -4,6 +4,7 @@ import {
   createDangerousFetchDispatcher,
   createFileSystemStore,
   createWorker,
+  debugWorkerLogger,
 } from "@belt/core";
 import z from "zod";
 
@@ -30,4 +31,5 @@ export const worker = createWorker({
   eventsSchema: EventsSchema,
   store: createFileSystemStore(path.join(os.tmpdir(), "belt-worker-store")),
   dispatcher,
+  // logger: debugWorkerLogger,
 });

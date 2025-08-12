@@ -1,6 +1,8 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import { z } from "zod";
 
+export type WorkerExecutionMode = "ISOLATED" | "UNTIL_ERROR";
+
 export const EMPTY_EXECUTION_RESULT = "<empty_execution_result>";
 
 export interface WorkerEvent<T extends string = string> {
@@ -84,6 +86,11 @@ export const WorkerPublishRequestBody = z.object({
   context: WorkerExecutionContext.optional(),
 });
 
+export interface WorkerMountOptions {
+  functions: WorkerFunction[];
+  executionMode?: WorkerExecutionMode;
+}
+
 export interface Worker<T extends WorkerEvent, U = any> {
   eventsSchema: StandardSchemaV1<T>;
 
@@ -105,9 +112,7 @@ export interface Worker<T extends WorkerEvent, U = any> {
     handler: WorkerFunctionHandler<T extends WorkerEvent<U> ? T : never>
   ): WorkerFunction;
 
-  mount(options: {
-    functions: WorkerFunction[];
-  }): WorkerMount<T>;
+  mount(options: WorkerMountOptions): WorkerMount<T>;
 
   publish(event: T, dispatcherOptions?: U): Promise<void>;
 }

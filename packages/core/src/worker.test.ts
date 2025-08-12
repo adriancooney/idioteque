@@ -1,7 +1,8 @@
 import { setTimeout } from "node:timers/promises";
 import { z } from "zod";
-import { createDangerousMemoryStore } from "./store";
-import type { Worker, WorkerMount } from "./types";
+import { debugWorkerLogger } from "./logger";
+import { type MemoryStore, createDangerousMemoryStore } from "./store";
+import type { Worker, WorkerFunction, WorkerMount } from "./types";
 import { createWorker } from "./worker";
 
 type JestMockAny = jest.Mock<any, any, any>;
@@ -12,7 +13,7 @@ describe("worker", () => {
   let barWorkerFunctionMock: JestMockAny;
   let worker: Worker<{ type: "foo" } | { type: "bar" }>;
   let workerMount: WorkerMount<{ type: "foo" } | { type: "bar" }>;
-  const timestamp = Date.now();
+  const timestamp = 1755036557392;
 
   beforeEach(() => {
     dispatcherMock = jest.fn();
@@ -30,6 +31,7 @@ describe("worker", () => {
       ]),
       store: createDangerousMemoryStore(),
       dispatcher: { dispatch: dispatcherMock },
+      logger: debugWorkerLogger,
     });
 
     workerMount = worker.mount({
@@ -41,11 +43,12 @@ describe("worker", () => {
           barWorkerFunctionMock
         ),
       ],
+      executionMode: "UNTIL_ERROR",
     });
   });
 
   afterEach(() => {
-    jest.resetAllMocks();
+    jest.clearAllMocks();
   });
 
   describe("Worker#publish", () => {
@@ -80,53 +83,15 @@ describe("worker", () => {
     });
   });
 
-  describe("WorkerMount#execute", () => {
-    it("executes the matching function", async () => {
-      await workerMount.execute({
-        type: "foo",
-      });
-
-      expect(fooWorkerFunctionMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          type: "foo",
-        }),
-        {
-          execute: expect.any(Function),
-          executionId: expect.any(String),
-          timestamp: expect.any(Number),
-        }
-      );
-
-      expect(barWorkerFunctionMock).not.toHaveBeenCalled();
-    });
-
-    it("executes the matching function (2)", async () => {
-      await workerMount.execute({
-        type: "bar",
-      });
-
-      expect(barWorkerFunctionMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          type: "bar",
-        }),
-        {
-          execute: expect.any(Function),
-          executionId: expect.any(String),
-          timestamp: expect.any(Number),
-        }
-      );
-      expect(fooWorkerFunctionMock).not.toHaveBeenCalled();
-    });
-  });
-
   describe("with execute", () => {
     let aExecution1Mock: JestMockAny;
     let aExecution2Mock: JestMockAny;
     let aExecution2ErrorMock: JestMockAny;
     let aExecution3Mock: JestMockAny;
+    let func1Mock: JestMockAny;
 
-    let transactions: Record<string, Record<string, any>>;
-    let executions: Record<string, Record<string, any>>;
+    let store: MemoryStore;
+    let func1Function: WorkerFunction;
 
     beforeEach(() => {
       dispatcherMock = jest.fn();
@@ -134,9 +99,21 @@ describe("worker", () => {
       aExecution2Mock = jest.fn();
       aExecution2ErrorMock = jest.fn();
       aExecution3Mock = jest.fn();
+      func1Mock = jest.fn(async (event, { execute }) => {
+        const aExecution1Result = await execute("astep1", aExecution1Mock);
 
-      transactions = {};
-      executions = {};
+        try {
+          const aExecution2Result = await execute("astep2", () =>
+            aExecution2Mock(aExecution1Result)
+          );
+
+          await aExecution3Mock(aExecution1Result, aExecution2Result);
+        } catch (err) {
+          aExecution2ErrorMock(err);
+        }
+      });
+
+      store = createDangerousMemoryStore();
 
       worker = createWorker({
         eventsSchema: z.discriminatedUnion("type", [
@@ -148,368 +125,30 @@ describe("worker", () => {
           }),
         ]),
         dispatcher: { dispatch: dispatcherMock },
-        store: {
-          async beginExecution(executionId) {
-            transactions[executionId] = {};
-            executions[executionId] = {};
-          },
-          async getExecutionTaskResult(executionId, functionId, taskId) {
-            return executions[executionId]?.[`${functionId}-${taskId}`];
-          },
-          async isExecutionTaskInProgress(executionId, functionId, taskId) {
-            return (
-              transactions[executionId]?.[`${functionId}-${taskId}`] || false
-            );
-          },
-          async beginExecutionTask(executionId, functionId, taskId) {
-            transactions[executionId][`${functionId}-${taskId}`] = true;
-          },
-          async commitExecutionTaskResult(
-            executionId,
-            functionId,
-            taskId,
-            value
-          ) {
-            delete transactions[executionId][`${functionId}-${taskId}`];
-            executions[executionId][`${functionId}-${taskId}`] = value;
-          },
-          async disposeExecution(executionId) {
-            if (
-              !(executionId in executions) ||
-              !(executionId in transactions)
-            ) {
-              throw new Error(
-                `Execution '${executionId}' not found, cannot dispose`
-              );
-            }
-
-            delete transactions[executionId];
-            delete executions[executionId];
-          },
-        },
+        store,
+        logger: debugWorkerLogger,
       });
 
-      workerMount = worker.mount({
-        functions: [
-          worker.createFunction("func1", "foo", async (event, { execute }) => {
-            const aExecution1Result = await execute("astep1", aExecution1Mock);
-
-            try {
-              const aExecution2Result = await execute("astep2", () =>
-                aExecution2Mock(aExecution1Result)
-              );
-
-              await aExecution3Mock(aExecution1Result, aExecution2Result);
-            } catch (err) {
-              aExecution2ErrorMock(err);
-            }
-          }),
-        ],
-      });
+      func1Function = worker.createFunction("func1", "foo", func1Mock);
     });
 
-    describe("WorkerMount#execute", () => {
-      it("publishes event to execution first step", async () => {
-        await workerMount.execute(
-          {
-            type: "foo",
-          },
-          {
-            executionId: "execution1",
-            timestamp,
-          }
-        );
+    afterEach(() => {
+      store.clear();
+    });
 
-        expect(transactions).toEqual({
-          execution1: { "func1-astep1": true },
-        });
-
-        expect(executions).toEqual({
-          execution1: {},
-        });
-
-        expect(aExecution1Mock).not.toHaveBeenCalled();
-        expect(aExecution2Mock).not.toHaveBeenCalled();
-        expect(aExecution3Mock).not.toHaveBeenCalled();
-
-        expect(dispatcherMock).toHaveBeenCalledTimes(1);
-
-        const request = dispatcherMock.mock.calls[0][0];
-
-        expect(JSON.parse(request)).toEqual({
-          event: {
-            type: "foo",
-          },
-          context: {
-            timestamp,
-            executionId: "execution1",
-            functionId: "func1",
-            taskId: "astep1",
-          },
+    describe("executionMode of ISOLATED", () => {
+      beforeEach(() => {
+        workerMount = worker.mount({
+          functions: [func1Function],
+          executionMode: "ISOLATED",
         });
       });
 
-      it("executes the first step", async () => {
-        aExecution1Mock.mockResolvedValueOnce("astep1-result");
-
-        transactions = {
-          execution1: { "func1-astep1": true },
-        };
-
-        executions = {
-          execution1: {},
-        };
-
-        await workerMount.execute(
-          {
-            type: "foo",
-          },
-          {
-            timestamp,
-            executionId: "execution1",
-            functionId: "func1",
-            taskId: "astep1",
-          }
-        );
-
-        expect(transactions).toEqual({
-          execution1: {},
-        });
-        expect(executions).toEqual({
-          execution1: { "func1-astep1": "astep1-result" },
-        });
-
-        expect(aExecution1Mock).toHaveBeenCalledTimes(1);
-        expect(aExecution1Mock).toHaveBeenCalledWith();
-
-        expect(aExecution2Mock).not.toHaveBeenCalled();
-        expect(aExecution3Mock).not.toHaveBeenCalled();
-
-        expect(dispatcherMock).toHaveBeenCalledTimes(1);
-
-        const request = dispatcherMock.mock.calls[0][0];
-
-        expect(JSON.parse(request)).toEqual({
-          event: {
-            type: "foo",
-          },
-          context: {
-            timestamp,
-            executionId: "execution1",
-            functionId: "func1",
-          },
-        });
-      });
-
-      it("publishes event to begin execution for n", async () => {
-        executions = {
-          execution1: { "func1-astep1": "astep1-result" },
-        };
-
-        transactions = {
-          execution1: {},
-        };
-
-        await workerMount.execute(
-          {
-            type: "foo",
-          },
-          {
-            timestamp,
-            executionId: "execution1",
-            functionId: "func1",
-          }
-        );
-
-        expect(transactions).toEqual({
-          execution1: { "func1-astep2": true },
-        });
-        expect(executions).toEqual({
-          execution1: { "func1-astep1": "astep1-result" },
-        });
-
-        expect(aExecution1Mock).not.toHaveBeenCalled();
-        expect(aExecution2Mock).not.toHaveBeenCalled();
-
-        expect(dispatcherMock).toHaveBeenCalledTimes(1);
-
-        const request = dispatcherMock.mock.calls[0][0];
-
-        expect(JSON.parse(request)).toEqual({
-          event: {
-            type: "foo",
-          },
-          context: {
-            timestamp,
-            executionId: "execution1",
-            functionId: "func1",
-            taskId: "astep2",
-          },
-        });
-      });
-
-      it("executes for n", async () => {
-        aExecution2Mock.mockResolvedValueOnce("astep2-result");
-
-        executions = {
-          execution1: { "func1-astep1": "astep1-result" },
-        };
-
-        transactions = {
-          execution1: {},
-        };
-
-        await workerMount.execute(
-          {
-            type: "foo",
-          },
-          {
-            timestamp,
-            executionId: "execution1",
-            functionId: "func1",
-            taskId: "astep2",
-          }
-        );
-
-        expect(transactions).toEqual({
-          execution1: {},
-        });
-        expect(executions).toEqual({
-          execution1: {
-            "func1-astep1": "astep1-result",
-            "func1-astep2": "astep2-result",
-          },
-        });
-
-        expect(aExecution1Mock).not.toHaveBeenCalled();
-        expect(aExecution2Mock).toHaveBeenCalledTimes(1);
-        expect(aExecution2Mock).toHaveBeenCalledWith("astep1-result");
-        expect(aExecution3Mock).not.toHaveBeenCalled();
-
-        expect(dispatcherMock).toHaveBeenCalledTimes(1);
-
-        const request = dispatcherMock.mock.calls[0][0];
-
-        expect(JSON.parse(request)).toEqual({
-          event: {
-            type: "foo",
-          },
-          context: {
-            timestamp,
-            executionId: "execution1",
-            functionId: "func1",
-          },
-        });
-      });
-
-      it("disposes the execution", async () => {
-        executions = {
-          execution1: {
-            "func1-astep1": "astep1-result",
-            "func1-astep2": "astep2-result",
-          },
-        };
-
-        transactions = {
-          execution1: {},
-        };
-
-        await workerMount.execute(
-          {
-            type: "foo",
-          },
-          {
-            timestamp,
-            executionId: "execution1",
-            functionId: "func1",
-          }
-        );
-
-        expect(transactions).toEqual({});
-        expect(executions).toEqual({});
-
-        expect(aExecution1Mock).not.toHaveBeenCalled();
-        expect(aExecution2Mock).not.toHaveBeenCalled();
-        expect(aExecution3Mock).toHaveBeenCalledTimes(1);
-        expect(aExecution3Mock).toHaveBeenCalledWith(
-          "astep1-result",
-          "astep2-result"
-        );
-        expect(dispatcherMock).not.toHaveBeenCalled();
-      });
-
-      it("should not execute step if it is in progress", async () => {
-        transactions = {
-          execution1: { "func1-astep1": true },
-        };
-
-        executions = {
-          execution1: {},
-        };
-
-        await workerMount.execute(
-          {
-            type: "foo",
-          },
-          {
-            timestamp,
-            executionId: "execution1",
-            functionId: "func1",
-          }
-        );
-
-        expect(transactions).toEqual({
-          execution1: { "func1-astep1": true },
-        });
-        expect(executions).toEqual({
-          execution1: {},
-        });
-
-        expect(aExecution1Mock).not.toHaveBeenCalled();
-        expect(dispatcherMock).not.toHaveBeenCalled();
-      });
-
-      it("supports try/catch", async () => {
-        const error = new Error();
-        aExecution2Mock.mockRejectedValue(error);
-
-        executions = {
-          execution1: { "func1-astep1": "astep1-result" },
-        };
-
-        transactions = {
-          execution1: {},
-        };
-
-        await workerMount.execute(
-          {
-            type: "foo",
-          },
-          {
-            timestamp,
-            executionId: "execution1",
-            functionId: "func1",
-            taskId: "astep2",
-          }
-        );
-
-        expect(aExecution2ErrorMock).toHaveBeenCalledWith(error);
-      });
-
-      describe("with simultaneous functions", () => {
-        beforeEach(() => {
-          workerMount = worker.mount({
-            functions: [
-              worker.createFunction("a1", "foo", aExecution1Mock),
-              worker.createFunction("a2", "foo", aExecution2Mock),
-            ],
+      describe("WorkerMount#execute", () => {
+        it("publishes event to execution first step", async () => {
+          store.setState({
+            execution1: {},
           });
-
-          aExecution2Mock.mockImplementation(() => setTimeout(100));
-        });
-
-        it("should dispose of exection when all functions are complete", async () => {
-          executions = {};
 
           await workerMount.execute(
             {
@@ -520,6 +159,573 @@ describe("worker", () => {
               executionId: "execution1",
             }
           );
+
+          expect(store.getState()).toMatchInlineSnapshot(`
+            {
+              "execution1": {
+                "func1": {
+                  "transaction": true,
+                },
+              },
+            }
+          `);
+
+          expect(func1Mock).not.toHaveBeenCalled();
+          expect(aExecution1Mock).not.toHaveBeenCalled();
+          expect(aExecution2Mock).not.toHaveBeenCalled();
+          expect(aExecution3Mock).not.toHaveBeenCalled();
+
+          expect(dispatcherMock).toHaveBeenCalledTimes(1);
+
+          const request = dispatcherMock.mock.calls[0][0];
+
+          expect(JSON.parse(request)).toMatchInlineSnapshot(`
+            {
+              "context": {
+                "executionId": "execution1",
+                "taskId": "func1",
+                "timestamp": 1755036557392,
+              },
+              "event": {
+                "type": "foo",
+              },
+            }
+          `);
+        });
+
+        it("does no work if the task is already in progress", async () => {
+          store.setState({
+            execution1: {
+              func1: {
+                transaction: true,
+              },
+            },
+          });
+
+          await workerMount.execute(
+            {
+              type: "foo",
+            },
+            {
+              timestamp,
+              executionId: "execution1",
+            }
+          );
+
+          expect(aExecution1Mock).not.toHaveBeenCalled();
+          expect(aExecution2Mock).not.toHaveBeenCalled();
+          expect(aExecution3Mock).not.toHaveBeenCalled();
+          expect(dispatcherMock).not.toHaveBeenCalled();
+        });
+
+        it("executes the function and starts first step execution", async () => {
+          store.setState({
+            execution1: {
+              func1: {
+                transaction: true,
+              },
+            },
+          });
+
+          await workerMount.execute(
+            {
+              type: "foo",
+            },
+            {
+              timestamp,
+              executionId: "execution1",
+              taskId: "func1",
+            }
+          );
+
+          expect(store.getState()).toMatchInlineSnapshot(`
+            {
+              "execution1": {
+                "func1": {
+                  "transaction": true,
+                },
+                "func1:astep1": {
+                  "transaction": true,
+                },
+              },
+            }
+          `);
+
+          expect(func1Mock).toHaveBeenCalled();
+          expect(aExecution1Mock).not.toHaveBeenCalled();
+          expect(aExecution2Mock).not.toHaveBeenCalled();
+          expect(aExecution3Mock).not.toHaveBeenCalled();
+
+          expect(dispatcherMock).toHaveBeenCalledTimes(1);
+
+          const request = dispatcherMock.mock.calls[0][0];
+
+          expect(JSON.parse(request)).toMatchInlineSnapshot(`
+            {
+              "context": {
+                "executionId": "execution1",
+                "taskId": "func1:astep1",
+                "timestamp": 1755036557392,
+              },
+              "event": {
+                "type": "foo",
+              },
+            }
+          `);
+        });
+
+        it("executes first step", async () => {
+          store.setState({
+            execution1: {
+              func1: {
+                transaction: true,
+              },
+              "func1:astep1": {
+                transaction: true,
+              },
+            },
+          });
+
+          aExecution1Mock.mockResolvedValueOnce("astep1-result");
+
+          await workerMount.execute(
+            {
+              type: "foo",
+            },
+            {
+              timestamp,
+              executionId: "execution1",
+              taskId: "func1:astep1",
+            }
+          );
+
+          expect(func1Mock).toHaveBeenCalled();
+          expect(aExecution1Mock).toHaveBeenCalled();
+          expect(aExecution2Mock).not.toHaveBeenCalled();
+          expect(aExecution3Mock).not.toHaveBeenCalled();
+
+          expect(dispatcherMock).toHaveBeenCalledTimes(1);
+
+          const request = dispatcherMock.mock.calls[0][0];
+
+          expect(JSON.parse(request)).toMatchInlineSnapshot(`
+            {
+              "context": {
+                "executionId": "execution1",
+                "taskId": "func1",
+                "timestamp": 1755036557392,
+              },
+              "event": {
+                "type": "foo",
+              },
+            }
+          `);
+        });
+
+        it("begins execution for n", async () => {
+          store.setState({
+            execution1: {
+              func1: {
+                transaction: true,
+              },
+              "func1:astep1": {
+                value: "astep1-result",
+              },
+            },
+          });
+
+          await workerMount.execute(
+            {
+              type: "foo",
+            },
+            {
+              timestamp,
+              executionId: "execution1",
+              taskId: "func1",
+            }
+          );
+
+          expect(store.getState()).toMatchInlineSnapshot(`
+            {
+              "execution1": {
+                "func1": {
+                  "transaction": true,
+                },
+                "func1:astep1": {
+                  "value": "astep1-result",
+                },
+                "func1:astep2": {
+                  "transaction": true,
+                },
+              },
+            }
+          `);
+
+          expect(aExecution1Mock).not.toHaveBeenCalled();
+          expect(aExecution2Mock).not.toHaveBeenCalled();
+
+          expect(dispatcherMock).toHaveBeenCalledTimes(1);
+
+          const request = dispatcherMock.mock.calls[0][0];
+
+          expect(JSON.parse(request)).toMatchInlineSnapshot(`
+            {
+              "context": {
+                "executionId": "execution1",
+                "taskId": "func1:astep2",
+                "timestamp": 1755036557392,
+              },
+              "event": {
+                "type": "foo",
+              },
+            }
+          `);
+        });
+
+        it("executes for n", async () => {
+          aExecution2Mock.mockResolvedValueOnce("astep2-result");
+
+          store.setState({
+            execution1: {
+              func1: {
+                transaction: true,
+              },
+              "func1:astep1": {
+                value: "astep1-result",
+              },
+              "func1:astep2": {
+                transaction: true,
+              },
+            },
+          });
+
+          await workerMount.execute(
+            {
+              type: "foo",
+            },
+            {
+              timestamp,
+              executionId: "execution1",
+              taskId: "func1:astep2",
+            }
+          );
+
+          expect(store.getState()).toMatchInlineSnapshot(`
+            {
+              "execution1": {
+                "func1": {
+                  "transaction": true,
+                },
+                "func1:astep1": {
+                  "value": "astep1-result",
+                },
+                "func1:astep2": {
+                  "value": "astep2-result",
+                },
+              },
+            }
+          `);
+
+          expect(aExecution1Mock).not.toHaveBeenCalled();
+          expect(aExecution2Mock).toHaveBeenCalledTimes(1);
+          expect(aExecution2Mock).toHaveBeenCalledWith("astep1-result");
+          expect(aExecution3Mock).not.toHaveBeenCalled();
+
+          expect(dispatcherMock).toHaveBeenCalledTimes(1);
+
+          const request = dispatcherMock.mock.calls[0][0];
+
+          expect(JSON.parse(request)).toMatchInlineSnapshot(`
+            {
+              "context": {
+                "executionId": "execution1",
+                "taskId": "func1",
+                "timestamp": 1755036557392,
+              },
+              "event": {
+                "type": "foo",
+              },
+            }
+          `);
+        });
+
+        it("completes the function execution", async () => {
+          store.setState({
+            execution1: {
+              func1: {
+                transaction: true,
+              },
+              "func1:astep1": {
+                value: "astep1-result",
+              },
+              "func1:astep2": {
+                value: "astep2-result",
+              },
+            },
+          });
+
+          await workerMount.execute(
+            {
+              type: "foo",
+            },
+            {
+              timestamp,
+              executionId: "execution1",
+              taskId: "func1",
+            }
+          );
+
+          expect(store.getState()).toMatchInlineSnapshot(`
+            {
+              "execution1": {
+                "func1": {
+                  "value": "<empty_execution_result>",
+                },
+                "func1:astep1": {
+                  "value": "astep1-result",
+                },
+                "func1:astep2": {
+                  "value": "astep2-result",
+                },
+              },
+            }
+          `);
+
+          expect(aExecution1Mock).not.toHaveBeenCalled();
+          expect(aExecution2Mock).not.toHaveBeenCalled();
+          expect(aExecution3Mock).toHaveBeenCalledWith(
+            "astep1-result",
+            "astep2-result"
+          );
+
+          expect(dispatcherMock).toHaveBeenCalledTimes(1);
+
+          const request = dispatcherMock.mock.calls[0][0];
+
+          expect(JSON.parse(request)).toMatchInlineSnapshot(`
+            {
+              "context": {
+                "executionId": "execution1",
+                "timestamp": 1755036557392,
+              },
+              "event": {
+                "type": "foo",
+              },
+            }
+          `);
+        });
+
+        it("closes the execution and disposes the execution", async () => {
+          store.setState({
+            execution1: {
+              func1: {
+                value: "<empty_execution_result>",
+              },
+              "func1:astep1": {
+                value: "astep1-result",
+              },
+              "func1:astep2": {
+                value: "astep2-result",
+              },
+            },
+          });
+
+          await workerMount.execute(
+            {
+              type: "foo",
+            },
+            {
+              timestamp,
+              executionId: "execution1",
+            }
+          );
+
+          // biome-ignore lint/style/noUnusedTemplateLiteral: snapshot
+          expect(store.getState()).toMatchInlineSnapshot(`{}`);
+
+          expect(func1Mock).not.toHaveBeenCalled();
+          expect(aExecution1Mock).not.toHaveBeenCalled();
+          expect(aExecution2Mock).not.toHaveBeenCalled();
+          expect(aExecution3Mock).not.toHaveBeenCalled();
+          expect(dispatcherMock).not.toHaveBeenCalled();
+        });
+
+        it("supports try/catch", async () => {
+          const error = new Error();
+          aExecution2Mock.mockRejectedValue(error);
+
+          store.setState({
+            execution1: {
+              func1: {
+                transaction: true,
+              },
+              "func1:astep1": {
+                value: "astep1-result",
+              },
+              "func1:astep2": {
+                transaction: true,
+              },
+            },
+          });
+
+          await workerMount.execute(
+            {
+              type: "foo",
+            },
+            {
+              timestamp,
+              executionId: "execution1",
+              taskId: "func1:astep2",
+            }
+          );
+
+          expect(aExecution2ErrorMock).toHaveBeenCalledWith(error);
+        });
+
+        describe("with simultaneous functions", () => {
+          beforeEach(() => {
+            workerMount = worker.mount({
+              functions: [
+                worker.createFunction("a1", "foo", aExecution1Mock),
+                worker.createFunction("a2", "foo", aExecution2Mock),
+              ],
+            });
+
+            aExecution2Mock.mockImplementation(() => setTimeout(100));
+          });
+
+          it("should dispose of exection when all functions are complete", async () => {
+            store.setState({
+              execution1: {},
+            });
+
+            await workerMount.execute(
+              {
+                type: "foo",
+              },
+              {
+                timestamp,
+                executionId: "execution1",
+              }
+            );
+
+            expect(store.getState()).toMatchInlineSnapshot(`
+              {
+                "execution1": {
+                  "a1": {
+                    "transaction": true,
+                  },
+                  "a2": {
+                    "transaction": true,
+                  },
+                },
+              }
+            `);
+
+            expect(dispatcherMock).toHaveBeenCalledTimes(2);
+
+            const request1 = dispatcherMock.mock.calls[0][0];
+
+            expect(JSON.parse(request1)).toMatchInlineSnapshot(`
+              {
+                "context": {
+                  "executionId": "execution1",
+                  "taskId": "a1",
+                  "timestamp": 1755036557392,
+                },
+                "event": {
+                  "type": "foo",
+                },
+              }
+            `);
+
+            const request2 = dispatcherMock.mock.calls[1][0];
+
+            expect(JSON.parse(request2)).toMatchInlineSnapshot(`
+              {
+                "context": {
+                  "executionId": "execution1",
+                  "taskId": "a2",
+                  "timestamp": 1755036557392,
+                },
+                "event": {
+                  "type": "foo",
+                },
+              }
+            `);
+          });
+        });
+      });
+    });
+
+    describe("executionMode of UNTIL_ERROR", () => {
+      beforeEach(() => {
+        workerMount = worker.mount({
+          functions: [func1Function],
+          executionMode: "UNTIL_ERROR",
+        });
+      });
+
+      describe("WorkerMount#execute", () => {
+        it("executes the whole function", async () => {
+          aExecution1Mock.mockResolvedValue("astep1-result");
+          aExecution2Mock.mockResolvedValue("astep2-result");
+
+          store.setState({
+            execution1: {},
+          });
+
+          await workerMount.execute(
+            {
+              type: "foo",
+            },
+            {
+              timestamp,
+              executionId: "execution1",
+            }
+          );
+
+          expect(store.getState()).toEqual({});
+
+          expect(func1Mock).toHaveBeenCalled();
+          expect(aExecution1Mock).toHaveBeenCalled();
+          expect(aExecution2Mock).toHaveBeenCalledWith("astep1-result");
+          expect(aExecution3Mock).toHaveBeenCalledWith(
+            "astep1-result",
+            "astep2-result"
+          );
+
+          expect(dispatcherMock).not.toHaveBeenCalled();
+        });
+
+        it("supports try/catch", async () => {
+          aExecution1Mock.mockResolvedValue("astep1-result");
+          const error = new Error();
+          aExecution2Mock.mockRejectedValue(error);
+
+          store.setState({
+            execution1: {},
+          });
+
+          await workerMount.execute(
+            {
+              type: "foo",
+            },
+            {
+              timestamp,
+              executionId: "execution1",
+            }
+          );
+
+          expect(store.getState()).toEqual({});
+
+          expect(func1Mock).toHaveBeenCalled();
+          expect(aExecution1Mock).toHaveBeenCalled();
+          expect(aExecution2Mock).toHaveBeenCalledWith("astep1-result");
+          expect(aExecution3Mock).not.toHaveBeenCalled();
+          expect(aExecution2ErrorMock).toHaveBeenCalledWith(error);
+
+          expect(dispatcherMock).not.toHaveBeenCalled();
         });
       });
     });

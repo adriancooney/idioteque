@@ -51,11 +51,19 @@ export function createRedisStore(redis: RedisImpl): WorkerStore {
   };
 }
 
-export function createDangerousMemoryStore(): WorkerStore {
-  const store: Record<
-    string,
-    Record<string, { value?: any; transaction?: boolean }>
-  > = {};
+export type MemoryStoreState = Record<
+  string,
+  Record<string, { value?: any; transaction?: boolean }>
+>;
+
+export type MemoryStore = WorkerStore & {
+  getState: () => MemoryStoreState;
+  setState: (state: MemoryStoreState) => void;
+  clear: () => void;
+};
+
+export function createDangerousMemoryStore(): MemoryStore {
+  let store: MemoryStoreState = {};
 
   return {
     async beginExecution(executionId) {
@@ -65,7 +73,7 @@ export function createDangerousMemoryStore(): WorkerStore {
       return store[executionId]?.[taskId]?.value;
     },
     async isExecutionTaskInProgress(executionId, taskId) {
-      return store[executionId]?.[taskId]?.value;
+      return store[executionId]?.[taskId]?.transaction || false;
     },
     async beginExecutionTask(executionId, taskId) {
       store[executionId][taskId] = { transaction: true };
@@ -79,6 +87,15 @@ export function createDangerousMemoryStore(): WorkerStore {
       }
 
       delete store[executionId];
+    },
+    getState() {
+      return store;
+    },
+    setState(nextStore) {
+      store = nextStore;
+    },
+    clear() {
+      store = {};
     },
   };
 }

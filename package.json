@@ -4,7 +4,8 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
-    "test": "turbo run test",
+    "test": "jest",
+    "test:turbo": "turbo run test",
     "lint": "turbo run lint",
     "format": "turbo run format",
     "check": "turbo run check",
@@ -16,7 +17,10 @@
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
     "@changesets/cli": "^2.29.5",
+    "@types/jest": "^29.5.14",
+    "jest": "^30.0.5",
     "lefthook": "^1.12.2",
+    "ts-jest": "^29.4.0",
     "turbo": "^2.5.5",
     "typescript": "^5.8.2"
   },

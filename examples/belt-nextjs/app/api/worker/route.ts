@@ -5,4 +5,5 @@ import { dispatcher, worker } from "@/lib/worker";
 
 export const { POST } = dispatcher.mount(worker, {
   functions: [processPayment, sendOrderConfirmation, updateInventory],
+  executionMode: "UNTIL_ERROR",
 });

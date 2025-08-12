@@ -1,4 +1,9 @@
-import type { Worker, WorkerDispatcher, WorkerFunction } from "./types";
+import type {
+  Worker,
+  WorkerDispatcher,
+  WorkerFunction,
+  WorkerMountOptions,
+} from "./types";
 
 /**
  * This dispatcher is dangerous because it does not guarantee delivery. If this
@@ -11,11 +16,11 @@ export function createDangerousFetchDispatcher({
 }): WorkerDispatcher & {
   mount: (
     worker: Worker<any>,
-    options: { functions: WorkerFunction[] }
+    options: WorkerMountOptions
   ) => { POST: (request: Request) => Promise<Response> };
 } {
   return {
-    async dispatch(data, options) {
+    async dispatch(data) {
       const controller = new AbortController();
 
       const res = await fetch(mountUrl, {
@@ -33,7 +38,9 @@ export function createDangerousFetchDispatcher({
     },
 
     mount(worker, options) {
-      const { process } = worker.mount(options);
+      const { process } = worker.mount({
+        ...options,
+      });
 
       return {
         POST: async (request: Request) => {

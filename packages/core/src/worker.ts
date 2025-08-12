@@ -52,7 +52,8 @@ export function createWorker<T extends { type: string }, U>(
   async function dispatchEventToFunctions(
     functions: WorkerFunction[],
     event: T,
-    context: WorkerExecutionContext
+    context: WorkerExecutionContext,
+    enqueueTask: (taskId?: string) => Promise<void>
   ): Promise<void> {
     const errors = (
       await Promise.allSettled(
@@ -60,6 +61,7 @@ export function createWorker<T extends { type: string }, U>(
           execute(
             context,
             event,
+            enqueueTask,
             func.id,
             async ({ execute }) =>
               await func.handler(event, { ...context, execute })
@@ -83,6 +85,7 @@ export function createWorker<T extends { type: string }, U>(
   async function execute<V>(
     context: WorkerExecutionContext,
     event: T,
+    enqueueTask: (taskId?: string) => Promise<void>,
     taskId: string,
     callback: (options: {
       execute: <U>(taskId: string, callback: () => Promise<U>) => Promise<U>;
@@ -116,7 +119,13 @@ export function createWorker<T extends { type: string }, U>(
                 return new Promise(async (executeResolve, executeReject) => {
                   try {
                     executeResolve(
-                      await execute(context, event, subTaskId, callback)
+                      await execute(
+                        context,
+                        event,
+                        enqueueTask,
+                        subTaskId,
+                        callback
+                      )
                     );
                   } catch (err) {
                     if (err instanceof WorkerInterrupt) {
@@ -150,31 +159,29 @@ export function createWorker<T extends { type: string }, U>(
 
       const parentTaskId = fullTaskId.split(":").slice(0, -1).join(":");
 
-      await publish(event, undefined, {
-        executionId: context.executionId,
-        timestamp: context.timestamp,
-        taskId: parentTaskId ? parentTaskId : undefined,
-      });
+      await enqueueTask(parentTaskId || undefined);
 
-      throw new WorkerInterrupt("Task execution commited");
+      throw new WorkerInterrupt({
+        reason: "Task execution commited",
+        nextTaskId: parentTaskId ? parentTaskId : undefined,
+      });
     }
 
     if (
       await store.isExecutionTaskInProgress(context.executionId, fullTaskId)
     ) {
       logger.debug(`TASK IN-PROGRESS ${context.executionId} > ${fullTaskId}`);
-      throw new WorkerInterrupt("Task in progress");
+      throw new WorkerInterrupt({ reason: "Task in progress" });
     }
 
     logger.debug(`BEGIN TASK ${context.executionId} > ${fullTaskId}`);
     await store.beginExecutionTask(context.executionId, fullTaskId);
-    await publish(event, undefined, {
-      timestamp: context.timestamp,
-      executionId: context.executionId,
-      taskId: fullTaskId,
-    });
 
-    throw new WorkerInterrupt("Task execution started");
+    await enqueueTask(fullTaskId);
+    throw new WorkerInterrupt({
+      reason: "Task execution started",
+      nextTaskId: fullTaskId,
+    });
   }
 
   return {
@@ -226,7 +233,7 @@ export function createWorker<T extends { type: string }, U>(
       };
     },
 
-    mount({ functions }) {
+    mount({ functions, executionMode = "ISOLATED" }) {
       assertFunctionIdsUnique(functions);
 
       async function execute(
@@ -253,14 +260,37 @@ export function createWorker<T extends { type: string }, U>(
           await store.beginExecution(context.executionId);
         }
 
-        try {
-          await dispatchEventToFunctions(targetFunctions, event, context);
-        } catch (err) {
-          if (err instanceof WorkerInterrupt) {
-            return;
-          }
+        const queue: WorkerExecutionContext[] = [context];
+        let head: WorkerExecutionContext | undefined;
 
-          throw err;
+        // biome-ignore lint/suspicious/noAssignInExpressions: <explanation>
+        while ((head = queue.shift())) {
+          try {
+            await dispatchEventToFunctions(
+              targetFunctions,
+              event,
+              head,
+              async (taskId) => {
+                if (executionMode === "UNTIL_ERROR") {
+                  queue.push({
+                    ...context,
+                    taskId,
+                  });
+                } else {
+                  await publish(event, undefined, {
+                    ...context,
+                    taskId,
+                  });
+                }
+              }
+            );
+          } catch (err) {
+            if (err instanceof WorkerInterrupt) {
+              continue;
+            }
+
+            throw err;
+          }
         }
       }
 
@@ -309,13 +339,15 @@ function assertFunctionIdsUnique(functions: WorkerFunction[]): void {
 
 export class WorkerInterrupt extends Error {
   reason: string;
+  nextTaskId?: string;
 
-  constructor(reason: string) {
+  constructor(options: { reason: string; nextTaskId?: string }) {
     super(
       `Worker Interrupt: if you're seeing this error, it means that you have wrapped your task in a try-catch. This is not possible, please remove it.`
     );
 
-    this.reason = reason;
+    this.reason = options.reason;
+    this.nextTaskId = options.nextTaskId;
   }
 }
 
