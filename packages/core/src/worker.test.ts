@@ -34,9 +34,9 @@ describe("worker", () => {
 
     workerMount = worker.mount({
       functions: [
-        worker.createFunction("a", "foo", fooWorkerFunctionMock),
+        worker.createFunction("func1", "foo", fooWorkerFunctionMock),
         worker.createFunction(
-          "b",
+          "func2",
           (event): event is { type: "bar" } => event.type === "bar",
           barWorkerFunctionMock
         ),
@@ -149,23 +149,35 @@ describe("worker", () => {
         ]),
         dispatcher: { dispatch: dispatcherMock },
         store: {
-          async getExecutionTaskResult(executionId, resultId) {
-            return executions[executionId]?.[resultId];
+          async beginExecution(executionId) {
+            transactions[executionId] = {};
+            executions[executionId] = {};
           },
-          async isExecutionTaskInProgress(executionId, resultId) {
-            return transactions[executionId]?.[resultId] || false;
+          async getExecutionTaskResult(executionId, functionId, taskId) {
+            return executions[executionId]?.[`${functionId}-${taskId}`];
           },
-          async beginExecutionTask(executionId, resultId) {
-            transactions[executionId] ??= {};
-            transactions[executionId][resultId] = true;
+          async isExecutionTaskInProgress(executionId, functionId, taskId) {
+            return (
+              transactions[executionId]?.[`${functionId}-${taskId}`] || false
+            );
           },
-          async commitExecutionTaskResult(executionId, resultId, value) {
-            delete transactions[executionId]?.[resultId];
-            executions[executionId] ??= {};
-            executions[executionId][resultId] = value;
+          async beginExecutionTask(executionId, functionId, taskId) {
+            transactions[executionId][`${functionId}-${taskId}`] = true;
+          },
+          async commitExecutionTaskResult(
+            executionId,
+            functionId,
+            taskId,
+            value
+          ) {
+            delete transactions[executionId][`${functionId}-${taskId}`];
+            executions[executionId][`${functionId}-${taskId}`] = value;
           },
           async disposeExecution(executionId) {
-            if (!(executionId in executions)) {
+            if (
+              !(executionId in executions) ||
+              !(executionId in transactions)
+            ) {
               throw new Error(
                 `Execution '${executionId}' not found, cannot dispose`
               );
@@ -179,7 +191,7 @@ describe("worker", () => {
 
       workerMount = worker.mount({
         functions: [
-          worker.createFunction("a", "foo", async (event, { execute }) => {
+          worker.createFunction("func1", "foo", async (event, { execute }) => {
             const aExecution1Result = await execute("astep1", aExecution1Mock);
 
             try {
@@ -209,10 +221,13 @@ describe("worker", () => {
         );
 
         expect(transactions).toEqual({
-          execution1: { astep1: true },
+          execution1: { "func1-astep1": true },
         });
 
-        expect(executions).toEqual({});
+        expect(executions).toEqual({
+          execution1: {},
+        });
+
         expect(aExecution1Mock).not.toHaveBeenCalled();
         expect(aExecution2Mock).not.toHaveBeenCalled();
         expect(aExecution3Mock).not.toHaveBeenCalled();
@@ -228,14 +243,22 @@ describe("worker", () => {
           context: {
             timestamp,
             executionId: "execution1",
-            functionId: "a",
-            executionTarget: "astep1",
+            functionId: "func1",
+            taskId: "astep1",
           },
         });
       });
 
       it("executes the first step", async () => {
         aExecution1Mock.mockResolvedValueOnce("astep1-result");
+
+        transactions = {
+          execution1: { "func1-astep1": true },
+        };
+
+        executions = {
+          execution1: {},
+        };
 
         await workerMount.execute(
           {
@@ -244,14 +267,16 @@ describe("worker", () => {
           {
             timestamp,
             executionId: "execution1",
-            functionId: "a",
-            executionTarget: "astep1",
+            functionId: "func1",
+            taskId: "astep1",
           }
         );
 
-        expect(transactions).toEqual({});
+        expect(transactions).toEqual({
+          execution1: {},
+        });
         expect(executions).toEqual({
-          execution1: { astep1: "astep1-result" },
+          execution1: { "func1-astep1": "astep1-result" },
         });
 
         expect(aExecution1Mock).toHaveBeenCalledTimes(1);
@@ -271,14 +296,18 @@ describe("worker", () => {
           context: {
             timestamp,
             executionId: "execution1",
-            functionId: "a",
+            functionId: "func1",
           },
         });
       });
 
       it("publishes event to begin execution for n", async () => {
         executions = {
-          execution1: { astep1: "astep1-result" },
+          execution1: { "func1-astep1": "astep1-result" },
+        };
+
+        transactions = {
+          execution1: {},
         };
 
         await workerMount.execute(
@@ -288,15 +317,15 @@ describe("worker", () => {
           {
             timestamp,
             executionId: "execution1",
-            functionId: "a",
+            functionId: "func1",
           }
         );
 
         expect(transactions).toEqual({
-          execution1: { astep2: true },
+          execution1: { "func1-astep2": true },
         });
         expect(executions).toEqual({
-          execution1: { astep1: "astep1-result" },
+          execution1: { "func1-astep1": "astep1-result" },
         });
 
         expect(aExecution1Mock).not.toHaveBeenCalled();
@@ -313,8 +342,8 @@ describe("worker", () => {
           context: {
             timestamp,
             executionId: "execution1",
-            functionId: "a",
-            executionTarget: "astep2",
+            functionId: "func1",
+            taskId: "astep2",
           },
         });
       });
@@ -323,7 +352,11 @@ describe("worker", () => {
         aExecution2Mock.mockResolvedValueOnce("astep2-result");
 
         executions = {
-          execution1: { astep1: "astep1-result" },
+          execution1: { "func1-astep1": "astep1-result" },
+        };
+
+        transactions = {
+          execution1: {},
         };
 
         await workerMount.execute(
@@ -333,16 +366,18 @@ describe("worker", () => {
           {
             timestamp,
             executionId: "execution1",
-            functionId: "a",
-            executionTarget: "astep2",
+            functionId: "func1",
+            taskId: "astep2",
           }
         );
 
-        expect(transactions).toEqual({});
+        expect(transactions).toEqual({
+          execution1: {},
+        });
         expect(executions).toEqual({
           execution1: {
-            astep1: "astep1-result",
-            astep2: "astep2-result",
+            "func1-astep1": "astep1-result",
+            "func1-astep2": "astep2-result",
           },
         });
 
@@ -362,19 +397,21 @@ describe("worker", () => {
           context: {
             timestamp,
             executionId: "execution1",
-            functionId: "a",
+            functionId: "func1",
           },
         });
       });
 
-      it("commits the execution", async () => {
-        aExecution2Mock.mockResolvedValueOnce("astep2-result");
-
+      it("disposes the execution", async () => {
         executions = {
           execution1: {
-            astep1: "astep1-result",
-            astep2: "astep2-result",
+            "func1-astep1": "astep1-result",
+            "func1-astep2": "astep2-result",
           },
+        };
+
+        transactions = {
+          execution1: {},
         };
 
         await workerMount.execute(
@@ -384,7 +421,7 @@ describe("worker", () => {
           {
             timestamp,
             executionId: "execution1",
-            functionId: "a",
+            functionId: "func1",
           }
         );
 
@@ -403,7 +440,11 @@ describe("worker", () => {
 
       it("should not execute step if it is in progress", async () => {
         transactions = {
-          execution1: { astep1: true },
+          execution1: { "func1-astep1": true },
+        };
+
+        executions = {
+          execution1: {},
         };
 
         await workerMount.execute(
@@ -413,14 +454,16 @@ describe("worker", () => {
           {
             timestamp,
             executionId: "execution1",
-            functionId: "a",
+            functionId: "func1",
           }
         );
 
         expect(transactions).toEqual({
-          execution1: { astep1: true },
+          execution1: { "func1-astep1": true },
         });
-        expect(executions).toEqual({});
+        expect(executions).toEqual({
+          execution1: {},
+        });
 
         expect(aExecution1Mock).not.toHaveBeenCalled();
         expect(dispatcherMock).not.toHaveBeenCalled();
@@ -431,7 +474,11 @@ describe("worker", () => {
         aExecution2Mock.mockRejectedValue(error);
 
         executions = {
-          execution1: { astep1: "astep1-result" },
+          execution1: { "func1-astep1": "astep1-result" },
+        };
+
+        transactions = {
+          execution1: {},
         };
 
         await workerMount.execute(
@@ -441,8 +488,8 @@ describe("worker", () => {
           {
             timestamp,
             executionId: "execution1",
-            functionId: "a",
-            executionTarget: "astep2",
+            functionId: "func1",
+            taskId: "astep2",
           }
         );
 

@@ -16,6 +16,7 @@ interface RedisImpl {
 
 export function createRedisStore(redis: RedisImpl): WorkerStore {
   return {
+    async beginExecution(executionId) {},
     async getExecutionTaskResult(executionId, taskId) {
       const result = await redis.hget(`${executionId}-results`, taskId);
 
@@ -29,7 +30,9 @@ export function createRedisStore(redis: RedisImpl): WorkerStore {
       return Boolean(await redis.hget(`${executionId}-transactions`, taskId));
     },
     async beginExecutionTask(executionId, taskId) {
-      await redis.hset(`${executionId}-transactions`, { [taskId]: "true" });
+      await redis.hset(`${executionId}-transactions`, {
+        [taskId]: "true",
+      });
     },
     async commitExecutionTaskResult(executionId, taskId, value) {
       await Promise.all([
@@ -55,6 +58,9 @@ export function createDangerousMemoryStore(): WorkerStore {
   > = {};
 
   return {
+    async beginExecution(executionId) {
+      store[executionId] = {};
+    },
     async getExecutionTaskResult(executionId, taskId) {
       return store[executionId]?.[taskId]?.value;
     },
@@ -62,13 +68,16 @@ export function createDangerousMemoryStore(): WorkerStore {
       return store[executionId]?.[taskId]?.value;
     },
     async beginExecutionTask(executionId, taskId) {
-      store[executionId] ??= {};
       store[executionId][taskId] = { transaction: true };
     },
     async commitExecutionTaskResult(executionId, taskId, value) {
       store[executionId][taskId] = { value };
     },
     async disposeExecution(executionId) {
+      if (!store[executionId]) {
+        throw new Error(`Execution '${executionId}' not found, cannot dispose`);
+      }
+
       delete store[executionId];
     },
   };
@@ -85,21 +94,30 @@ export function createFileSystemStore(storeDir: string): WorkerStore {
     path.join(getExecutionDir(executionId), `${taskId}.result`);
 
   return {
+    async beginExecution(executionId) {
+      await fs.mkdir(getExecutionDir(executionId), { recursive: true });
+    },
     async getExecutionTaskResult(executionId, taskId) {
       try {
         const data = await fs.readFile(
           getResultFile(executionId, taskId),
           "utf-8"
         );
+
         return JSON.parse(data);
-      } catch {
-        return undefined;
+      } catch (err) {
+        if (err instanceof Error && "code" in err && err.code === "ENOENT") {
+          return undefined;
+        }
+
+        throw err;
       }
     },
 
     async isExecutionTaskInProgress(executionId, taskId) {
       try {
         await fs.access(getTransactionFile(executionId, taskId));
+
         return true;
       } catch {
         return false;
@@ -107,7 +125,6 @@ export function createFileSystemStore(storeDir: string): WorkerStore {
     },
 
     async beginExecutionTask(executionId, taskId) {
-      await fs.mkdir(getExecutionDir(executionId), { recursive: true });
       await fs.writeFile(getTransactionFile(executionId, taskId), "");
     },
 
@@ -117,13 +134,14 @@ export function createFileSystemStore(storeDir: string): WorkerStore {
         JSON.stringify(value)
       );
 
-      await fs.unlink(getTransactionFile(executionId, taskId)).catch(() => {});
+      await fs.unlink(getTransactionFile(executionId, taskId));
     },
 
     async disposeExecution(executionId) {
-      await fs
-        .rm(getExecutionDir(executionId), { recursive: true, force: true })
-        .catch(() => {});
+      await fs.rm(getExecutionDir(executionId), {
+        recursive: true,
+        force: true,
+      });
     },
   };
 }

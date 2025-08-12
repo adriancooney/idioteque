@@ -12,8 +12,6 @@ export default worker.createFunction(
       `💳 Processing payment for order ${order.id} - $${order.amount}`
     );
 
-    await setTimeout(2000);
-
     console.log("✅ Payment processed successfully");
 
     await worker.publish({

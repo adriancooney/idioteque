@@ -33,22 +33,25 @@ export interface WorkerMount<T extends WorkerEvent = WorkerEvent> {
 }
 
 export interface WorkerStore {
+  beginExecution(
+    executionId: WorkerExecutionContext["executionId"]
+  ): Promise<void>;
   getExecutionTaskResult(
     executionId: WorkerExecutionContext["executionId"],
-    taskId: string
+    taskId: Exclude<WorkerExecutionContext["taskId"], undefined>
   ): Promise<unknown | undefined>;
   beginExecutionTask(
     executionId: WorkerExecutionContext["executionId"],
-    taskId: string
+    taskId: Exclude<WorkerExecutionContext["taskId"], undefined>
   ): Promise<void>;
   commitExecutionTaskResult(
     executionId: WorkerExecutionContext["executionId"],
-    taskId: string,
+    taskId: Exclude<WorkerExecutionContext["taskId"], undefined>,
     value: unknown
   ): Promise<void>;
   isExecutionTaskInProgress(
     executionId: WorkerExecutionContext["executionId"],
-    taskId: string
+    taskId: Exclude<WorkerExecutionContext["taskId"], undefined>
   ): Promise<boolean>;
   disposeExecution(
     executionId: WorkerExecutionContext["executionId"]
@@ -68,10 +71,9 @@ export interface WorkerOptions<T extends WorkerEvent = WorkerEvent, D = any> {
 
 export type WorkerExecutionContext = z.TypeOf<typeof WorkerExecutionContext>;
 export const WorkerExecutionContext = z.object({
-  executionId: z.string(),
   timestamp: z.number(),
-  functionId: z.string().optional(),
-  executionTarget: z.string().optional(),
+  executionId: z.string(),
+  taskId: z.string().optional(),
 });
 
 export type WorkerPublishRequestBody = z.TypeOf<
@@ -105,7 +107,6 @@ export interface Worker<T extends WorkerEvent, U = any> {
 
   mount(options: {
     functions: WorkerFunction[];
-    sync?: boolean;
   }): WorkerMount<T>;
 
   publish(event: T, dispatcherOptions?: U): Promise<void>;

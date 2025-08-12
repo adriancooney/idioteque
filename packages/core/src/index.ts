@@ -1,6 +1,5 @@
 export * from "./types";
 export * from "./worker";
-export * from "./errors";
 export * from "./logger";
 export * from "./metrics";
 export * from "./store";

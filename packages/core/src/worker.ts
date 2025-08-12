@@ -1,5 +1,4 @@
-import { map } from "bluebird";
-import { WorkerError } from "./errors";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { defaultExecutor } from "./executor";
 import { defaultWorkerLogger } from "./logger";
 import { defaultWorkerMetrics } from "./metrics";
@@ -56,179 +55,126 @@ export function createWorker<T extends { type: string }, U>(
     context: WorkerExecutionContext
   ): Promise<void> {
     const errors = (
-      await map(
-        functions,
-        (func) => dispatchEventToFunction(func, event, context),
-        {
-          concurrency: concurrency || 3,
-        }
+      await Promise.allSettled(
+        functions.map((func) =>
+          execute(
+            context,
+            event,
+            func.id,
+            async ({ execute }) =>
+              await func.handler(event, { ...context, execute })
+          )
+        )
       )
-    ).filter(Boolean);
+    )
+      .filter((result) => result.status === "rejected")
+      .map((result) => result.reason);
 
-    if (errors.length === 1) {
+    if (errors.length > 0) {
       throw errors[0];
     }
 
-    if (errors.length > 1) {
-      throw new WorkerError(
-        `One or more worker functions failed to execute: ${formatError(
-          errors[0]
-        )}`
-      );
-    }
+    logger.debug(`END ${context.executionId}`);
+    await store.disposeExecution(context.executionId);
   }
 
-  async function dispatchEventToFunction(
-    func: WorkerFunction,
+  const pathAsyncLocalStore = new AsyncLocalStorage<string>();
+
+  async function execute<V>(
+    context: WorkerExecutionContext,
     event: T,
-    context: WorkerExecutionContext
-  ): Promise<unknown | null> {
-    const dispatchId = generateExecutionId();
-    const isRootExecution = !context.executionTarget && !context.functionId;
+    taskId: string,
+    callback: (options: {
+      execute: <U>(taskId: string, callback: () => Promise<U>) => Promise<U>;
+    }) => Promise<V>
+  ): Promise<V> {
+    const path = pathAsyncLocalStore.getStore() || "";
+    const fullTaskId = `${path}:${taskId}`.replace(/^:/, "");
+    const executionResult = await store.getExecutionTaskResult(
+      context.executionId,
+      fullTaskId
+    );
 
-    try {
-      if (isRootExecution) {
-        logger.debug(
-          `Executing worker function ${func.id}`,
-          event.type,
-          context
-        );
-      }
+    if (executionResult !== undefined) {
+      logger.debug(`CACHE HIT ${context.executionId} > ${fullTaskId}`);
 
-      console.log(`[${dispatchId}] START ${context.executionId}`);
-
-      await new Promise((resolve, reject) => {
-        function execute<V>(
-          taskId: string,
-          callback: () => Promise<V>
-        ): Promise<V> {
-          // biome-ignore lint/suspicious/noAsyncPromiseExecutor: wrapped in try catch
-          return new Promise(async (executeResolve, executeReject) => {
-            try {
-              const executionResult = await store.getExecutionTaskResult(
-                context.executionId,
-                taskId
-              );
-
-              if (executionResult !== undefined) {
-                console.log(
-                  `[${dispatchId}] CACHE HIT ${context.executionId} > ${taskId}`
-                );
-                executeResolve(
-                  (executionResult === EMPTY_EXECUTION_RESULT
-                    ? undefined
-                    : executionResult) as any
-                );
-
-                return;
-              }
-
-              if (taskId === context.executionTarget) {
-                const result = await callback();
-
-                console.log(
-                  `[${dispatchId}] COMMIT ${context.executionId} > ${taskId}`
-                );
-                await store.commitExecutionTaskResult(
-                  context.executionId,
-                  taskId,
-                  result === undefined ? EMPTY_EXECUTION_RESULT : result
-                );
-
-                await publish(event, undefined, {
-                  functionId: func.id,
-                  executionId: context.executionId,
-                  timestamp: context.timestamp,
-                });
-
-                throw new WorkerInterrupt();
-              }
-
-              if (
-                await store.isExecutionTaskInProgress(
-                  context.executionId,
-                  taskId
-                )
-              ) {
-                console.log(
-                  `[${dispatchId}] IN-PROGRESS ${context.executionId} > ${taskId}`
-                );
-                throw new WorkerInterrupt();
-              }
-
-              console.log(
-                `[${dispatchId}] BEGIN ${context.executionId} > ${taskId}`
-              );
-              await store.beginExecutionTask(context.executionId, taskId);
-              await publish(event, undefined, {
-                functionId: func.id,
-                executionId: context.executionId,
-                timestamp: context.timestamp,
-                executionTarget: taskId,
-              });
-
-              throw new WorkerInterrupt();
-            } catch (err) {
-              if (err instanceof WorkerInterrupt) {
-                reject(err);
-
-                return;
-              }
-
-              executeReject(err);
-            }
-          });
-        }
-
-        return executor(
-          func,
-          [
-            event,
-            {
-              ...context,
-              execute,
-            },
-          ],
-          workerOptions
-        )
-          .then(resolve)
-          .catch(reject);
-      });
-
-      if (context.executionId) {
-        console.log(`[${dispatchId}] DISPOSE ${context.executionId}`);
-        await store.disposeExecution(context.executionId);
-      }
-
-      if (isRootExecution) {
-        await metrics.timing(
-          "worker.run",
-          {
-            eventType: event.type,
-          },
-          [context.timestamp, Date.now()]
-        );
-      }
-
-      console.log(`[${dispatchId}] END ${context.executionId}`);
-
-      return null;
-    } catch (error) {
-      if (error instanceof WorkerInterrupt) {
-        console.log(`[${dispatchId}] END ${context.executionId}`);
-        return null;
-      }
-
-      await metrics.increment("worker.error", {
-        eventType: event.type,
-      });
-
-      logger.debug(`Worker function ${func.id} failed`, event, context, error);
-
-      onError?.(error);
-
-      return error;
+      return (
+        executionResult === EMPTY_EXECUTION_RESULT ? undefined : executionResult
+      ) as any;
     }
+
+    if (context.taskId?.startsWith(fullTaskId)) {
+      logger.debug(`EXECUTE ${context.executionId} > ${fullTaskId}`);
+
+      const result = await pathAsyncLocalStore.run(
+        fullTaskId,
+        () =>
+          new Promise((resolve, reject) =>
+            callback({
+              execute(subTaskId, callback) {
+                // biome-ignore lint/suspicious/noAsyncPromiseExecutor:
+                return new Promise(async (executeResolve, executeReject) => {
+                  try {
+                    executeResolve(
+                      await execute(context, event, subTaskId, callback)
+                    );
+                  } catch (err) {
+                    if (err instanceof WorkerInterrupt) {
+                      logger.debug(
+                        `INTERRUPT ${context.executionId} > ${context.taskId}: ${err.reason}`
+                      );
+                      // We purposely do not call `executeReject(err)` here so the execution
+                      // of the function does not resume. We only reject the main function
+                      // promise with the interrupt
+                      reject(err);
+
+                      return;
+                    }
+
+                    executeReject(err);
+                  }
+                });
+              },
+            })
+              .then(resolve)
+              .catch(reject)
+          )
+      );
+
+      logger.debug(`COMMIT ${context.executionId} > ${fullTaskId}`);
+      await store.commitExecutionTaskResult(
+        context.executionId,
+        fullTaskId,
+        result === undefined ? EMPTY_EXECUTION_RESULT : result
+      );
+
+      const parentTaskId = fullTaskId.split(":").slice(0, -1).join(":");
+
+      await publish(event, undefined, {
+        executionId: context.executionId,
+        timestamp: context.timestamp,
+        taskId: parentTaskId ? parentTaskId : undefined,
+      });
+
+      throw new WorkerInterrupt("Task execution commited");
+    }
+
+    if (
+      await store.isExecutionTaskInProgress(context.executionId, fullTaskId)
+    ) {
+      logger.debug(`TASK IN-PROGRESS ${context.executionId} > ${fullTaskId}`);
+      throw new WorkerInterrupt("Task in progress");
+    }
+
+    logger.debug(`BEGIN TASK ${context.executionId} > ${fullTaskId}`);
+    await store.beginExecutionTask(context.executionId, fullTaskId);
+    await publish(event, undefined, {
+      timestamp: context.timestamp,
+      executionId: context.executionId,
+      taskId: fullTaskId,
+    });
+
+    throw new WorkerInterrupt("Task execution started");
   }
 
   return {
@@ -280,7 +226,7 @@ export function createWorker<T extends { type: string }, U>(
       };
     },
 
-    mount({ functions, sync = false }) {
+    mount({ functions }) {
       assertFunctionIdsUnique(functions);
 
       async function execute(
@@ -289,9 +235,12 @@ export function createWorker<T extends { type: string }, U>(
       ): Promise<void> {
         const targetFunctions = filterFunctionsByEventAndContext(
           functions,
-          event,
-          context
+          event
         );
+
+        if (!targetFunctions.length) {
+          return;
+        }
 
         if (!context) {
           // biome-ignore lint/style/noParameterAssign: ignore
@@ -299,9 +248,20 @@ export function createWorker<T extends { type: string }, U>(
             executionId: generateExecutionId(),
             timestamp: Date.now(),
           };
+
+          logger.debug(`START ${context.executionId}`);
+          await store.beginExecution(context.executionId);
         }
 
-        await dispatchEventToFunctions(targetFunctions, event, context);
+        try {
+          await dispatchEventToFunctions(targetFunctions, event, context);
+        } catch (err) {
+          if (err instanceof WorkerInterrupt) {
+            return;
+          }
+
+          throw err;
+        }
       }
 
       return {
@@ -329,26 +289,11 @@ export function createWorker<T extends { type: string }, U>(
   };
 }
 
-function formatError(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return `${error}`;
-}
-
 function filterFunctionsByEventAndContext<T extends WorkerEvent>(
   functions: WorkerFunction[],
-  event: T,
-  context?: WorkerExecutionContext
+  event: T
 ): WorkerFunction[] {
-  return functions.filter((func) => {
-    if (context?.functionId) {
-      return func.id === context?.functionId;
-    }
-
-    return func.eventFilter(event);
-  });
+  return functions.filter((func) => func.eventFilter(event));
 }
 
 function assertFunctionIdsUnique(functions: WorkerFunction[]): void {
@@ -363,10 +308,14 @@ function assertFunctionIdsUnique(functions: WorkerFunction[]): void {
 }
 
 export class WorkerInterrupt extends Error {
-  constructor() {
+  reason: string;
+
+  constructor(reason: string) {
     super(
       `Worker Interrupt: if you're seeing this error, it means that you have wrapped your task in a try-catch. This is not possible, please remove it.`
     );
+
+    this.reason = reason;
   }
 }
 
