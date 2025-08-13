@@ -1,6 +1,6 @@
 {
   "name": "@belt/vercel-queue",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "description": "Vercel Queue adapter for Belt worker library",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
