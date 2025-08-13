@@ -3,8 +3,8 @@ module.exports = {
   testEnvironment: "node",
   projects: [
     {
-      displayName: "core",
-      rootDir: "<rootDir>/packages/core",
+      displayName: "idioteque",
+      rootDir: "<rootDir>/packages/idioteque",
       testMatch: [
         "<rootDir>/src/**/__tests__/**/*.ts",
         "<rootDir>/src/**/?(*.)+(spec|test).ts",
