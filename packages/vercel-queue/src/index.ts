@@ -10,7 +10,7 @@ export function createVercelQueueDispatcher(): WorkerDispatcher & {
   mount: <T extends WorkerEvent>(
     worker: Worker<T>,
     options: WorkerMountOptions
-  ) => ReturnType<typeof handleCallback>;
+  ) => { POST: ReturnType<typeof handleCallback> };
 } {
   return {
     async dispatch(data) {
@@ -23,11 +23,13 @@ export function createVercelQueueDispatcher(): WorkerDispatcher & {
     ) {
       const { process } = worker.mount(options);
 
-      return handleCallback({
-        "belt-message": {
-          worker: (message: any) => process(message.data),
-        },
-      });
+      return {
+        POST: handleCallback({
+          "belt-message": {
+            worker: (message: any) => process(message.data),
+          },
+        }),
+      };
     },
   };
 }
