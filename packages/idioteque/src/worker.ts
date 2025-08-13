@@ -17,6 +17,8 @@ import { generateExecutionId, jsonString } from "./util";
 export function createWorker<T extends { type: string }, U>(
   workerOptions: WorkerOptions<T, U>
 ): Worker<T, U> {
+  const pathAsyncLocalStore = new AsyncLocalStorage<string>();
+
   let {
     eventsSchema,
     concurrency,
@@ -42,7 +44,7 @@ export function createWorker<T extends { type: string }, U>(
     );
 
     if (!context) {
-      logger.debug(">> Published worker event", event);
+      logger.debug(`PUBLISH | ${event.type}`);
       await metrics.increment("worker.publish", {
         eventType: event.type,
       });
@@ -55,6 +57,13 @@ export function createWorker<T extends { type: string }, U>(
     context: WorkerExecutionContext,
     enqueueTask: (taskId?: string) => Promise<void>
   ): Promise<void> {
+    if (!(await store.isExecutionInProgress(context.executionId))) {
+      // This can happen for delayed idempotent events
+      logger.debug(`${context.executionId} | EXECUTION NOT FOUND, SKIPPING`);
+
+      return;
+    }
+
     const errors = (
       await Promise.allSettled(
         functions.map((func) =>
@@ -76,11 +85,9 @@ export function createWorker<T extends { type: string }, U>(
       throw errors[0];
     }
 
-    logger.debug(`END ${context.executionId}`);
+    logger.debug(`${context.executionId} | EXECUTION END`);
     await store.disposeExecution(context.executionId);
   }
-
-  const pathAsyncLocalStore = new AsyncLocalStorage<string>();
 
   async function execute<V>(
     context: WorkerExecutionContext,
@@ -99,7 +106,7 @@ export function createWorker<T extends { type: string }, U>(
     );
 
     if (executionResult !== undefined) {
-      logger.debug(`CACHE HIT ${context.executionId} > ${fullTaskId}`);
+      logger.debug(`${context.executionId} | ${fullTaskId} | CACHE HIT`);
 
       return (
         executionResult === EMPTY_EXECUTION_RESULT ? undefined : executionResult
@@ -107,50 +114,53 @@ export function createWorker<T extends { type: string }, U>(
     }
 
     if (context.taskId?.startsWith(fullTaskId)) {
-      logger.debug(`EXECUTE ${context.executionId} > ${fullTaskId}`);
+      logger.debug(`${context.executionId} | ${fullTaskId} | EXECUTE`);
 
       const result = await pathAsyncLocalStore.run(
         fullTaskId,
         () =>
           new Promise((resolve, reject) =>
-            callback({
-              execute(subTaskId, callback) {
-                // biome-ignore lint/suspicious/noAsyncPromiseExecutor:
-                return new Promise(async (executeResolve, executeReject) => {
-                  try {
-                    executeResolve(
-                      await execute(
-                        context,
-                        event,
-                        enqueueTask,
-                        subTaskId,
-                        callback
-                      )
-                    );
-                  } catch (err) {
-                    if (err instanceof WorkerInterrupt) {
-                      logger.debug(
-                        `INTERRUPT ${context.executionId} > ${context.taskId}: ${err.reason}`
+            Promise.resolve(
+              callback({
+                execute(subTaskId, callback) {
+                  // biome-ignore lint/suspicious/noAsyncPromiseExecutor:
+                  return new Promise(async (executeResolve, executeReject) => {
+                    try {
+                      executeResolve(
+                        await execute(
+                          context,
+                          event,
+                          enqueueTask,
+                          subTaskId,
+                          callback
+                        )
                       );
-                      // We purposely do not call `executeReject(err)` here so the execution
-                      // of the function does not resume. We only reject the main function
-                      // promise with the interrupt
-                      reject(err);
+                    } catch (err) {
+                      if (err instanceof WorkerInterrupt) {
+                        logger.debug(
+                          `${context.executionId} | ${context.taskId} | INTERRUPT | ${err.reason}`
+                        );
 
-                      return;
+                        // We purposely do not call `executeReject(err)` here so the execution
+                        // of the function does not resume. We only reject the main function
+                        // promise with the interrupt
+                        reject(err);
+
+                        return;
+                      }
+
+                      executeReject(err);
                     }
-
-                    executeReject(err);
-                  }
-                });
-              },
-            })
+                  });
+                },
+              })
+            )
               .then(resolve)
               .catch(reject)
           )
       );
 
-      logger.debug(`COMMIT ${context.executionId} > ${fullTaskId}`);
+      logger.debug(`${context.executionId} | ${fullTaskId} | COMMIT`);
       await store.commitExecutionTaskResult(
         context.executionId,
         fullTaskId,
@@ -159,28 +169,32 @@ export function createWorker<T extends { type: string }, U>(
 
       const parentTaskId = fullTaskId.split(":").slice(0, -1).join(":");
 
-      await enqueueTask(parentTaskId || undefined);
+      const nextTaskId = parentTaskId || undefined;
+
+      await enqueueTask(nextTaskId);
 
       throw new WorkerInterrupt({
-        reason: "Task execution commited",
-        nextTaskId: parentTaskId ? parentTaskId : undefined,
+        reason: `Task '${fullTaskId}' execution committed${
+          nextTaskId ? `, triggering '${nextTaskId}' next` : ""
+        }`,
       });
     }
 
     if (
       await store.isExecutionTaskInProgress(context.executionId, fullTaskId)
     ) {
-      logger.debug(`TASK IN-PROGRESS ${context.executionId} > ${fullTaskId}`);
-      throw new WorkerInterrupt({ reason: "Task in progress" });
+      logger.debug(`${context.executionId} | ${fullTaskId} | TASK IN-PROGRESS`);
+      throw new WorkerInterrupt({
+        reason: `Task '${fullTaskId}' in progress, skipping`,
+      });
     }
 
-    logger.debug(`BEGIN TASK ${context.executionId} > ${fullTaskId}`);
+    logger.debug(`${context.executionId} | ${fullTaskId} | BEGIN TASK`);
     await store.beginExecutionTask(context.executionId, fullTaskId);
 
     await enqueueTask(fullTaskId);
     throw new WorkerInterrupt({
-      reason: "Task execution started",
-      nextTaskId: fullTaskId,
+      reason: `Task '${fullTaskId}' execution triggered`,
     });
   }
 
@@ -256,7 +270,7 @@ export function createWorker<T extends { type: string }, U>(
             timestamp: Date.now(),
           };
 
-          logger.debug(`START ${context.executionId}`);
+          logger.debug(`${context.executionId} | EXECUTION START`);
           await store.beginExecution(context.executionId);
         }
 
@@ -277,6 +291,11 @@ export function createWorker<T extends { type: string }, U>(
                     taskId,
                   });
                 } else {
+                  // Test dispatchers immediately execute on publish which continues
+                  // the async local storage stack and causes an infinite loop. this
+                  // prevents that.
+                  pathAsyncLocalStore.disable();
+
                   await publish(event, undefined, {
                     ...context,
                     taskId,
@@ -339,15 +358,13 @@ function assertFunctionIdsUnique(functions: WorkerFunction[]): void {
 
 export class WorkerInterrupt extends Error {
   reason: string;
-  nextTaskId?: string;
 
-  constructor(options: { reason: string; nextTaskId?: string }) {
+  constructor(options: { reason: string }) {
     super(
       `Worker Interrupt: if you're seeing this error, it means that you have wrapped your task in a try-catch. This is not possible, please remove it.`
     );
 
     this.reason = options.reason;
-    this.nextTaskId = options.nextTaskId;
   }
 }
 

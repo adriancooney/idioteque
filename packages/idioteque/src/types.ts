@@ -51,6 +51,9 @@ export interface WorkerStore {
     taskId: Exclude<WorkerExecutionContext["taskId"], undefined>,
     value: unknown
   ): Promise<void>;
+  isExecutionInProgress(
+    executionId: WorkerExecutionContext["executionId"]
+  ): Promise<boolean>;
   isExecutionTaskInProgress(
     executionId: WorkerExecutionContext["executionId"],
     taskId: Exclude<WorkerExecutionContext["taskId"], undefined>

@@ -1,7 +1,11 @@
 import os from "node:os";
 import path from "node:path";
 import { createVercelQueueDispatcher } from "@idioteque/vercel-queue";
-import { createFileSystemStore, createWorker } from "idioteque";
+import {
+  createFileSystemStore,
+  createWorker,
+  debugWorkerLogger,
+} from "idioteque";
 import z from "zod";
 
 const EventsSchema = z.discriminatedUnion("type", [
@@ -22,5 +26,6 @@ export const worker = createWorker({
   store: createFileSystemStore(
     path.join(os.tmpdir(), "idioteque-worker-store")
   ),
+  logger: debugWorkerLogger,
   dispatcher,
 });

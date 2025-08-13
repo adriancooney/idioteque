@@ -3,6 +3,8 @@ import path from "node:path";
 import type { WorkerStore } from "./types";
 
 interface RedisImpl {
+  set(key: string, value: string): Promise<unknown>;
+  get(key: string): Promise<unknown>;
   hset: (
     key: string,
     kv: {
@@ -16,7 +18,9 @@ interface RedisImpl {
 
 export function createRedisStore(redis: RedisImpl): WorkerStore {
   return {
-    async beginExecution(executionId) {},
+    async beginExecution(executionId) {
+      await redis.set(executionId, "true");
+    },
     async getExecutionTaskResult(executionId, taskId) {
       const result = await redis.hget(`${executionId}-results`, taskId);
 
@@ -25,6 +29,9 @@ export function createRedisStore(redis: RedisImpl): WorkerStore {
       }
 
       return undefined;
+    },
+    async isExecutionInProgress(executionId) {
+      return Boolean(await redis.get(executionId));
     },
     async isExecutionTaskInProgress(executionId, taskId) {
       return Boolean(await redis.hget(`${executionId}-transactions`, taskId));
@@ -71,6 +78,9 @@ export function createDangerousMemoryStore(): MemoryStore {
     },
     async getExecutionTaskResult(executionId, taskId) {
       return store[executionId]?.[taskId]?.value;
+    },
+    async isExecutionInProgress(executionId) {
+      return !!store[executionId] || false;
     },
     async isExecutionTaskInProgress(executionId, taskId) {
       return store[executionId]?.[taskId]?.transaction || false;
@@ -131,6 +141,15 @@ export function createFileSystemStore(storeDir: string): WorkerStore {
       }
     },
 
+    async isExecutionInProgress(executionId) {
+      try {
+        await fs.access(getExecutionDir(executionId));
+
+        return true;
+      } catch {
+        return false;
+      }
+    },
     async isExecutionTaskInProgress(executionId, taskId) {
       try {
         await fs.access(getTransactionFile(executionId, taskId));

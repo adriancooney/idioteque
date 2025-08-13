@@ -26,7 +26,12 @@ export function createVercelQueueDispatcher(): WorkerDispatcher & {
       return {
         POST: handleCallback({
           "idioteque-message": {
-            worker: (message: any) => process(message.data),
+            worker: async (...args) => {
+              console.log(args);
+
+              const [message]: any[] = args;
+              process(message.data);
+            },
           },
         }),
       };
