@@ -1,6 +1,6 @@
 {
   "name": "@belt/core",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Worker library for distributed task execution",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -12,7 +12,9 @@
       "require": "./dist/index.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
@@ -22,7 +24,12 @@
     "check": "biome check",
     "clean": "rm -rf dist"
   },
-  "keywords": ["worker", "queue", "background-jobs", "distributed"],
+  "keywords": [
+    "worker",
+    "queue",
+    "background-jobs",
+    "distributed"
+  ],
   "author": "Adrian",
   "license": "MIT",
   "dependencies": {
