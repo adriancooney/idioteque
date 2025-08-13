@@ -1,5 +1,13 @@
 # @idioteque/vercel-queue
 
+## 0.0.3
+
+### Patch Changes
+
+- 2046eb3: Fixed infinite loop bug in dispatches in same async context
+- Updated dependencies [2046eb3]
+  - idioteque@0.0.3
+
 ## 0.0.2
 
 ### Patch Changes
