@@ -1,0 +1,14 @@
+{
+  "functions": {
+    "app/api/worker/route.ts": {
+      "experimentalTriggers": [
+        {
+          "type": "queue/v1beta",
+          "topic": "belt-message",
+          "consumer": "worker",
+          "retryAfterSeconds": 300
+        }
+      ]
+    }
+  }
+}

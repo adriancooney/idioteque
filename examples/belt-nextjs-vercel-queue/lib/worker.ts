@@ -1,10 +1,7 @@
 import os from "node:os";
 import path from "node:path";
-import {
-  createFileSystemWorkerStore,
-  createVercelQueueDispatcher,
-  createWorker,
-} from "@belt/core";
+import { createFileSystemStore, createWorker } from "@belt/core";
+import { createVercelQueueDispatcher } from "@belt/vercel-queue";
 import z from "zod";
 
 const EventsSchema = z.discriminatedUnion("type", [
@@ -18,16 +15,10 @@ const EventsSchema = z.discriminatedUnion("type", [
   }),
 ]);
 
-export const worker = createWorker({
-  url: `${
-    process.env.NODE_ENV === "production"
-      ? `https://${process.env.VERCEL_URL}`
-      : "http://localhost:3000"
-  }/api/worker`,
+export const dispatcher = createVercelQueueDispatcher();
 
+export const worker = createWorker({
   eventsSchema: EventsSchema,
-  store: createFileSystemWorkerStore(
-    path.join(os.tmpdir(), "belt-worker-store")
-  ),
-  dispatcher: createVercelQueueDispatcher(),
+  store: createFileSystemStore(path.join(os.tmpdir(), "belt-worker-store")),
+  dispatcher,
 });
