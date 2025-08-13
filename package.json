@@ -1,5 +1,5 @@
 {
-  "name": "belt-monorepo",
+  "name": "idioteque-monorepo",
   "private": true,
   "scripts": {
     "build": "turbo run build",

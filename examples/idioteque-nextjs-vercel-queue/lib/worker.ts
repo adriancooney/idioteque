@@ -1,7 +1,7 @@
 import os from "node:os";
 import path from "node:path";
-import { createFileSystemStore, createWorker } from "@belt/core";
-import { createVercelQueueDispatcher } from "@belt/vercel-queue";
+import { createVercelQueueDispatcher } from "@idioteque/vercel-queue";
+import { createFileSystemStore, createWorker } from "idioteque";
 import z from "zod";
 
 const EventsSchema = z.discriminatedUnion("type", [
@@ -19,6 +19,8 @@ export const dispatcher = createVercelQueueDispatcher();
 
 export const worker = createWorker({
   eventsSchema: EventsSchema,
-  store: createFileSystemStore(path.join(os.tmpdir(), "belt-worker-store")),
+  store: createFileSystemStore(
+    path.join(os.tmpdir(), "idioteque-worker-store")
+  ),
   dispatcher,
 });

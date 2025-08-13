@@ -1,10 +1,10 @@
+import { handleCallback, send } from "@vercel/queue";
 import type {
   Worker,
   WorkerDispatcher,
   WorkerEvent,
   WorkerMountOptions,
-} from "@belt/core";
-import { handleCallback, send } from "@vercel/queue";
+} from "idioteque";
 
 export function createVercelQueueDispatcher(): WorkerDispatcher & {
   mount: <T extends WorkerEvent>(
@@ -14,7 +14,7 @@ export function createVercelQueueDispatcher(): WorkerDispatcher & {
 } {
   return {
     async dispatch(data) {
-      await send("belt-message", { data });
+      await send("idioteque-message", { data });
     },
 
     mount<T extends WorkerEvent>(
@@ -25,7 +25,7 @@ export function createVercelQueueDispatcher(): WorkerDispatcher & {
 
       return {
         POST: handleCallback({
-          "belt-message": {
+          "idioteque-message": {
             worker: (message: any) => process(message.data),
           },
         }),

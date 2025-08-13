@@ -4,7 +4,7 @@
       "experimentalTriggers": [
         {
           "type": "queue/v1beta",
-          "topic": "belt-message",
+          "topic": "idioteque-message",
           "consumer": "worker",
           "retryAfterSeconds": 300
         }

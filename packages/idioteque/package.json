@@ -1,5 +1,5 @@
 {
-  "name": "@belt/core",
+  "name": "idioteque",
   "version": "0.0.1",
   "description": "Worker library for distributed task execution",
   "main": "dist/index.js",

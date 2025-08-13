@@ -33,11 +33,11 @@ importers:
         specifier: ^5.8.2
         version: 5.9.2
 
-  examples/belt-nextjs:
+  examples/idioteque-nextjs:
     dependencies:
-      '@belt/core':
+      idioteque:
         specifier: workspace:*
-        version: link:../../packages/core
+        version: link:../../packages/idioteque
       next:
         specifier: 15.4.5
         version: 15.4.5(@babel/core@7.28.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
@@ -64,17 +64,17 @@ importers:
         specifier: ^5
         version: 5.9.2
 
-  examples/belt-nextjs-vercel-queue:
+  examples/idioteque-nextjs-vercel-queue:
     dependencies:
-      '@belt/core':
-        specifier: workspace:*
-        version: link:../../packages/core
-      '@belt/vercel-queue':
+      '@idioteque/vercel-queue':
         specifier: workspace:*
         version: link:../../packages/vercel-queue
       '@vercel/queue':
         specifier: 0.0.0-alpha.20
         version: 0.0.0-alpha.20
+      idioteque:
+        specifier: workspace:*
+        version: link:../../packages/idioteque
       next:
         specifier: 15.4.5
         version: 15.4.5(@babel/core@7.28.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
@@ -107,7 +107,7 @@ importers:
         specifier: ^5
         version: 5.9.2
 
-  packages/core:
+  packages/idioteque:
     dependencies:
       '@standard-schema/spec':
         specifier: ^1.0.0
@@ -137,12 +137,12 @@ importers:
 
   packages/vercel-queue:
     dependencies:
-      '@belt/core':
-        specifier: workspace:*
-        version: link:../core
       '@vercel/queue':
         specifier: 0.0.0-alpha.20
         version: 0.0.0-alpha.20
+      idioteque:
+        specifier: workspace:*
+        version: link:../idioteque
     devDependencies:
       '@types/jest':
         specifier: ^29.5.14

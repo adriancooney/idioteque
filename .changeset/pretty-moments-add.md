@@ -1,6 +1,6 @@
 ---
-"@belt/core": patch
-"@belt/vercel-queue": patch
+"idioteque": patch
+"@idioteque/vercel-queue": patch
 ---
 
 Initial release
