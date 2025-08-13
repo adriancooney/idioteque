@@ -1,7 +1,10 @@
 {
   "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
   "files": {
-    "ignore": ["dist/**", ".claude/**"]
+    "ignore": ["dist/**", ".claude/**", ".next/**"]
+  },
+  "vcs": {
+    "useIgnoreFile": true
   },
   "organizeImports": {
     "enabled": true
