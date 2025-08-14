@@ -1,5 +1,12 @@
 # idioteque-nextjs
 
+## 0.1.3
+
+### Patch Changes
+
+- Updated dependencies [025dbc1]
+  - idioteque@0.0.4
+
 ## 0.1.2
 
 ### Patch Changes

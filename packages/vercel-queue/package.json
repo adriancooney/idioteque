@@ -1,6 +1,6 @@
 {
   "name": "@idioteque/vercel-queue",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Vercel Queue adapter for idioteque worker library",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -12,9 +12,7 @@
       "require": "./dist/index.js"
     }
   },
-  "files": [
-    "dist"
-  ],
+  "files": ["dist"],
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
@@ -24,13 +22,7 @@
     "check": "biome check",
     "clean": "rm -rf dist"
   },
-  "keywords": [
-    "worker",
-    "queue",
-    "vercel",
-    "background-jobs",
-    "distributed"
-  ],
+  "keywords": ["worker", "queue", "vercel", "background-jobs", "distributed"],
   "author": "Adrian",
   "license": "MIT",
   "dependencies": {

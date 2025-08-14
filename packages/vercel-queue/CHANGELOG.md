@@ -1,5 +1,13 @@
 # @idioteque/vercel-queue
 
+## 0.0.4
+
+### Patch Changes
+
+- 025dbc1: Improve store
+- Updated dependencies [025dbc1]
+  - idioteque@0.0.4
+
 ## 0.0.3
 
 ### Patch Changes

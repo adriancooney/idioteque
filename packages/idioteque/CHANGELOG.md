@@ -1,5 +1,11 @@
 # idioteque
 
+## 0.0.4
+
+### Patch Changes
+
+- 025dbc1: Improve store
+
 ## 0.0.3
 
 ### Patch Changes
