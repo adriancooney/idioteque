@@ -9,9 +9,10 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "idioteque": "workspace:*",
-    "@idioteque/vercel-queue": "workspace:*",
+    "@idioteque/vercel-queue": "*",
+    "@upstash/redis": "^1.35.3",
     "@vercel/queue": "0.0.0-alpha.20",
+    "idioteque": "*",
     "next": "15.4.5",
     "react": "19.1.0",
     "react-dom": "19.1.0",

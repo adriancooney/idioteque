@@ -12,9 +12,7 @@
       "require": "./dist/index.js"
     }
   },
-  "files": [
-    "dist"
-  ],
+  "files": ["dist"],
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
@@ -24,12 +22,7 @@
     "check": "biome check",
     "clean": "rm -rf dist"
   },
-  "keywords": [
-    "worker",
-    "queue",
-    "background-jobs",
-    "distributed"
-  ],
+  "keywords": ["worker", "queue", "background-jobs", "distributed"],
   "author": "Adrian",
   "license": "MIT",
   "dependencies": {
@@ -37,8 +30,10 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@types/ioredis": "^5.0.0",
     "@types/jest": "^29.5.14",
     "@types/node": "^22.12.0",
+    "ioredis": "^5.7.0",
     "jest": "^30.0.5",
     "ts-jest": "^29.4.0",
     "tsup": "^8.0.0",

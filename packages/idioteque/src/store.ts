@@ -51,6 +51,7 @@ export function createRedisStore(redis: RedisImpl): WorkerStore {
     },
     async disposeExecution(executionId) {
       await Promise.all([
+        redis.del(executionId),
         redis.del(`${executionId}-transactions`),
         redis.del(`${executionId}-results`),
       ]);

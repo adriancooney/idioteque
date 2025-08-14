@@ -1,11 +1,6 @@
-import os from "node:os";
-import path from "node:path";
 import { createVercelQueueDispatcher } from "@idioteque/vercel-queue";
-import {
-  createFileSystemStore,
-  createWorker,
-  debugWorkerLogger,
-} from "idioteque";
+import { Redis } from "@upstash/redis";
+import { createRedisStore, createWorker, debugWorkerLogger } from "idioteque";
 import z from "zod";
 
 const EventsSchema = z.discriminatedUnion("type", [
@@ -23,9 +18,7 @@ export const dispatcher = createVercelQueueDispatcher();
 
 export const worker = createWorker({
   eventsSchema: EventsSchema,
-  store: createFileSystemStore(
-    path.join(os.tmpdir(), "idioteque-worker-store")
-  ),
+  store: createRedisStore(Redis.fromEnv({ automaticDeserialization: false })),
   logger: debugWorkerLogger,
   dispatcher,
 });
