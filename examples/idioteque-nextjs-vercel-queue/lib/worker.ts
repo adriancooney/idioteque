@@ -1,6 +1,6 @@
 import { createVercelQueueDispatcher } from "@idioteque/vercel-queue";
 import { Redis } from "@upstash/redis";
-import { createRedisStore, createWorker, debugWorkerLogger } from "idioteque";
+import { createRedisStore, createWorker } from "idioteque";
 import z from "zod";
 
 const EventsSchema = z.discriminatedUnion("type", [
@@ -19,6 +19,5 @@ export const dispatcher = createVercelQueueDispatcher();
 export const worker = createWorker({
   eventsSchema: EventsSchema,
   store: createRedisStore(Redis.fromEnv({ automaticDeserialization: false })),
-  logger: debugWorkerLogger,
   dispatcher,
 });
