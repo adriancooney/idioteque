@@ -1,6 +1,6 @@
+import type { WorkerStore } from "idioteque";
 import { Redis } from "ioredis";
 import { createRedisStore } from "./store";
-import type { WorkerStore } from "./types";
 
 describe(createRedisStore, () => {
   let redis: Redis;

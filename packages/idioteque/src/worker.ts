@@ -1,5 +1,4 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import { defaultExecutor } from "./executor";
 import { defaultWorkerLogger } from "./logger";
 import { defaultWorkerMetrics } from "./metrics";
 import {
@@ -25,7 +24,6 @@ export function createWorker<T extends { type: string }, U>(
     onError,
     metrics = defaultWorkerMetrics,
     logger = defaultWorkerLogger,
-    executor = defaultExecutor,
     dispatcher,
     store,
   } = workerOptions;
@@ -207,7 +205,6 @@ export function createWorker<T extends { type: string }, U>(
       onError = options.onError || onError;
       metrics = options.metrics || metrics;
       logger = options.logger || logger;
-      executor = options.executor || executor;
       dispatcher = options.dispatcher || dispatcher;
       store = options.store || store;
     },
@@ -219,7 +216,6 @@ export function createWorker<T extends { type: string }, U>(
         onError,
         metrics,
         logger,
-        executor,
         dispatcher,
         store,
       };

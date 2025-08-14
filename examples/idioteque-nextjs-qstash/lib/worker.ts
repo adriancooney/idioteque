@@ -1,6 +1,7 @@
 import { createQStashDispatcher } from "@idioteque/qstash";
+import { createRedisStore } from "@idioteque/redis";
 import { Redis } from "@upstash/redis";
-import { createRedisStore, createWorker } from "idioteque";
+import { createWorker } from "idioteque";
 import z from "zod";
 
 const EventsSchema = z.discriminatedUnion("type", [

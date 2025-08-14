@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@idioteque/qstash": "workspace:*",
+    "@idioteque/redis": "workspace:*",
     "@upstash/redis": "^1.35.3",
     "idioteque": "workspace:*",
     "next": "15.4.5",

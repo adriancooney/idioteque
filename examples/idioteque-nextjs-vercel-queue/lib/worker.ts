@@ -1,6 +1,7 @@
+import { createRedisStore } from "@idioteque/redis";
 import { createVercelQueueDispatcher } from "@idioteque/vercel-queue";
 import { Redis } from "@upstash/redis";
-import { createRedisStore, createWorker } from "idioteque";
+import { createWorker } from "idioteque";
 import z from "zod";
 
 const EventsSchema = z.discriminatedUnion("type", [

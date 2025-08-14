@@ -1,11 +1,8 @@
 import z from "zod";
 import { debugWorkerLogger } from "./logger";
-import { type MemoryStore, createMemoryStore } from "./store";
+import { createMemoryStore } from "./store";
 import { setupWorker } from "./testing-utils";
-import type { Worker, WorkerMount } from "./types";
 import { createWorker } from "./worker";
-
-type JestMockAny = jest.Mock<any, any, any>;
 
 describe("testing-utils", () => {
   const dispatcherMock = jest.fn();

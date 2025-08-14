@@ -70,7 +70,6 @@ export interface WorkerOptions<T extends WorkerEvent = WorkerEvent, D = any> {
   onError?: (error: unknown) => Promise<unknown> | unknown;
   metrics?: WorkerMetrics;
   logger?: WorkerLogger;
-  executor?: WorkerExecutor;
   concurrency?: number;
 }
 
@@ -140,12 +139,6 @@ export interface WorkerLogger {
   warn: (...args: any[]) => void;
   error: (...args: any[]) => void;
 }
-
-export type WorkerExecutor = (
-  func: WorkerFunction,
-  args: Parameters<WorkerFunctionHandler>,
-  workerOptions: WorkerOptions
-) => Promise<void>;
 
 export type WorkerDispatcher<Options = any> = {
   dispatch: (data: string, options?: Options) => Promise<void>;
