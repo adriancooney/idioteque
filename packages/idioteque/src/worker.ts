@@ -168,7 +168,6 @@ export function createWorker<T extends { type: string }, U>(
       );
 
       const parentTaskId = fullTaskId.split(":").slice(0, -1).join(":");
-
       const nextTaskId = parentTaskId || undefined;
 
       await enqueueTask(nextTaskId);

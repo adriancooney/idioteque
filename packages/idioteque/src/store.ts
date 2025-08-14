@@ -70,7 +70,7 @@ export type MemoryStore = WorkerStore & {
   clear: () => void;
 };
 
-export function createDangerousMemoryStore(): MemoryStore {
+export function createMemoryStore(): MemoryStore {
   let store: MemoryStoreState = {};
 
   return {

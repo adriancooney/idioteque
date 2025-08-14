@@ -1,6 +1,6 @@
 {
-  "name": "idioteque-nextjs-vercel-queue",
-  "version": "0.1.2",
+  "name": "idioteque-nextjs-qstash",
+  "version": "0.1.0",
   "private": true,
   "author": "Adrian Cooney <cooney.adrian@gmail.com>",
   "scripts": {
@@ -10,10 +10,9 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@idioteque/vercel-queue": "*",
+    "@idioteque/qstash": "workspace:*",
     "@upstash/redis": "^1.35.3",
-    "@vercel/queue": "0.0.0-alpha.20",
-    "idioteque": "*",
+    "idioteque": "workspace:*",
     "next": "15.4.5",
     "react": "19.1.0",
     "react-dom": "19.1.0",

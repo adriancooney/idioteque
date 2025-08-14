@@ -1,6 +1,6 @@
 import z from "zod";
 import { debugWorkerLogger } from "./logger";
-import { type MemoryStore, createDangerousMemoryStore } from "./store";
+import { type MemoryStore, createMemoryStore } from "./store";
 import { setupWorker } from "./testing-utils";
 import type { Worker, WorkerMount } from "./types";
 import { createWorker } from "./worker";
@@ -17,7 +17,7 @@ describe("testing-utils", () => {
     await execute("get-order-by-id", () => getOrderMock());
   });
 
-  const store = createDangerousMemoryStore();
+  const store = createMemoryStore();
 
   const worker = createWorker({
     eventsSchema: z.discriminatedUnion("type", [

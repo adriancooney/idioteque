@@ -1,7 +1,7 @@
 import { setTimeout } from "node:timers/promises";
 import { z } from "zod";
 import { debugWorkerLogger } from "./logger";
-import { type MemoryStore, createDangerousMemoryStore } from "./store";
+import { type MemoryStore, createMemoryStore } from "./store";
 import type { Worker, WorkerFunction, WorkerMount } from "./types";
 import { createWorker } from "./worker";
 
@@ -29,7 +29,7 @@ describe("worker", () => {
           type: z.literal("bar"),
         }),
       ]),
-      store: createDangerousMemoryStore(),
+      store: createMemoryStore(),
       dispatcher: { dispatch: dispatcherMock },
       logger: debugWorkerLogger,
     });
@@ -113,7 +113,7 @@ describe("worker", () => {
         }
       });
 
-      store = createDangerousMemoryStore();
+      store = createMemoryStore();
 
       worker = createWorker({
         eventsSchema: z.discriminatedUnion("type", [

@@ -23,7 +23,7 @@
     "clean": "rm -rf dist"
   },
   "keywords": ["worker", "queue", "vercel", "background-jobs", "distributed"],
-  "author": "Adrian",
+  "author": "Adrian Cooney <cooney.adrian@gmail.com>",
   "license": "MIT",
   "dependencies": {
     "idioteque": "workspace:*",
