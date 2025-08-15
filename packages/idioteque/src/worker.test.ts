@@ -730,4 +730,84 @@ describe("worker", () => {
       });
     });
   });
+
+  describe("optimization: cache results of tasks in memory", () => {
+    let getExecutionTaskResultSpy: jest.SpyInstance;
+    let commitExecutionTaskResultSpy: jest.SpyInstance;
+    let store: MemoryStore;
+    let optimizationWorker: Worker<{ type: "test" }>;
+    let optimizationMount: WorkerMount<{ type: "test" }>;
+
+    beforeEach(() => {
+      store = createMemoryStore();
+      getExecutionTaskResultSpy = jest.spyOn(store, "getExecutionTaskResult");
+      commitExecutionTaskResultSpy = jest.spyOn(
+        store,
+        "commitExecutionTaskResult"
+      );
+
+      optimizationWorker = createWorker({
+        eventsSchema: z.discriminatedUnion("type", [
+          z.object({
+            type: z.literal("test"),
+          }),
+        ]),
+        store,
+        dispatcher: { dispatch: jest.fn() },
+        logger: debugWorkerLogger,
+      });
+
+      optimizationMount = optimizationWorker.mount({
+        functions: [
+          optimizationWorker.createFunction(
+            "testFunc",
+            "test",
+            async (event, { execute }) => {
+              const result1 = await execute("step1", async () => "value-1");
+              const result2 = await execute("step2", async () => "value-2");
+
+              return { result1, result2 };
+            }
+          ),
+        ],
+        executionMode: "UNTIL_ERROR",
+      });
+    });
+
+    afterEach(() => {
+      store.clear();
+      jest.restoreAllMocks();
+    });
+
+    it("should not call getExecutionTaskResult again when task result is cached", async () => {
+      store.setState({
+        execution1: {},
+      });
+
+      await optimizationMount.execute(
+        { type: "test" },
+        {
+          timestamp: Date.now(),
+          executionId: "execution1",
+        }
+      );
+
+      expect(getExecutionTaskResultSpy).toHaveBeenCalledTimes(3);
+      expect(getExecutionTaskResultSpy).toHaveBeenNthCalledWith(
+        1,
+        "execution1",
+        "testFunc"
+      );
+      expect(getExecutionTaskResultSpy).toHaveBeenNthCalledWith(
+        2,
+        "execution1",
+        "testFunc:step1"
+      );
+      expect(getExecutionTaskResultSpy).toHaveBeenNthCalledWith(
+        3,
+        "execution1",
+        "testFunc:step2"
+      );
+    });
+  });
 });

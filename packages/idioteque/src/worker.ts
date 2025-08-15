@@ -53,7 +53,8 @@ export function createWorker<T extends { type: string }, U>(
     functions: WorkerFunction[],
     event: T,
     context: WorkerExecutionContext,
-    enqueueTask: (taskId?: string) => Promise<void>
+    enqueueTask: (taskId?: string) => Promise<void>,
+    executionCache: Record<string, unknown>
   ): Promise<void> {
     if (!(await store.isExecutionInProgress(context.executionId))) {
       // This can happen for delayed idempotent events
@@ -71,7 +72,8 @@ export function createWorker<T extends { type: string }, U>(
             enqueueTask,
             func.id,
             async ({ execute }) =>
-              await func.handler(event, { ...context, execute })
+              await func.handler(event, { ...context, execute }),
+            executionCache
           )
         )
       )
@@ -87,6 +89,37 @@ export function createWorker<T extends { type: string }, U>(
     await store.disposeExecution(context.executionId);
   }
 
+  // Task results are immutable and can be cached in memory. This saves trips to
+  // the store when executionMode is UNTIL_ERROR. The cache is shortlived and
+  // per dispatch.
+  async function getExecutionTaskResultCached(
+    executionCache: Record<string, unknown>,
+    executionId: string,
+    taskId: string
+  ): Promise<unknown | undefined> {
+    const cachedValue = executionCache[taskId];
+
+    console.log({ taskId, cachedValue });
+
+    if (cachedValue !== undefined) {
+      return cachedValue;
+    }
+
+    return await store.getExecutionTaskResult(executionId, taskId);
+  }
+
+  async function commitExecutionTaskResultCached(
+    executionCache: Record<string, unknown>,
+    executionId: string,
+    taskId: string,
+    value: unknown
+  ): Promise<void> {
+    executionCache[taskId] = value;
+    console.log("cached", taskId);
+
+    await store.commitExecutionTaskResult(executionId, taskId, value);
+  }
+
   async function execute<V>(
     context: WorkerExecutionContext,
     event: T,
@@ -94,22 +127,11 @@ export function createWorker<T extends { type: string }, U>(
     taskId: string,
     callback: (options: {
       execute: <U>(taskId: string, callback: () => Promise<U>) => Promise<U>;
-    }) => Promise<V>
+    }) => Promise<V>,
+    executionCache: Record<string, unknown>
   ): Promise<V> {
     const path = pathAsyncLocalStore.getStore() || "";
     const fullTaskId = `${path}:${taskId}`.replace(/^:/, "");
-    const executionResult = await store.getExecutionTaskResult(
-      context.executionId,
-      fullTaskId
-    );
-
-    if (executionResult !== undefined) {
-      logger.debug(`${context.executionId} | ${fullTaskId} | CACHE HIT`);
-
-      return (
-        executionResult === EMPTY_EXECUTION_RESULT ? undefined : executionResult
-      ) as any;
-    }
 
     if (context.taskId?.startsWith(fullTaskId)) {
       logger.debug(`${context.executionId} | ${fullTaskId} | EXECUTE`);
@@ -130,7 +152,8 @@ export function createWorker<T extends { type: string }, U>(
                           event,
                           enqueueTask,
                           subTaskId,
-                          callback
+                          callback,
+                          executionCache
                         )
                       );
                     } catch (err) {
@@ -159,7 +182,8 @@ export function createWorker<T extends { type: string }, U>(
       );
 
       logger.debug(`${context.executionId} | ${fullTaskId} | COMMIT`);
-      await store.commitExecutionTaskResult(
+      await commitExecutionTaskResultCached(
+        executionCache,
         context.executionId,
         fullTaskId,
         result === undefined ? EMPTY_EXECUTION_RESULT : result
@@ -175,6 +199,20 @@ export function createWorker<T extends { type: string }, U>(
           nextTaskId ? `, triggering '${nextTaskId}' next` : ""
         }`,
       });
+    }
+
+    const executionResult = await getExecutionTaskResultCached(
+      executionCache,
+      context.executionId,
+      fullTaskId
+    );
+
+    if (executionResult !== undefined) {
+      logger.debug(`${context.executionId} | ${fullTaskId} | CACHE HIT`);
+
+      return (
+        executionResult === EMPTY_EXECUTION_RESULT ? undefined : executionResult
+      ) as any;
     }
 
     if (
@@ -269,6 +307,7 @@ export function createWorker<T extends { type: string }, U>(
           await store.beginExecution(context.executionId);
         }
 
+        const executionCache = {};
         const queue: WorkerExecutionContext[] = [context];
         let head: WorkerExecutionContext | undefined;
 
@@ -296,7 +335,8 @@ export function createWorker<T extends { type: string }, U>(
                     taskId,
                   });
                 }
-              }
+              },
+              executionCache
             );
           } catch (err) {
             if (err instanceof WorkerInterrupt) {
