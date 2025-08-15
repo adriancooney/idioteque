@@ -1,5 +1,13 @@
 # @idioteque/vercel-queue
 
+## 0.0.5
+
+### Patch Changes
+
+- a4bb850: Add redis cache optimization
+- Updated dependencies [a4bb850]
+  - idioteque@0.0.5
+
 ## 0.0.4
 
 ### Patch Changes

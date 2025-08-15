@@ -1,5 +1,11 @@
 # idioteque
 
+## 0.0.5
+
+### Patch Changes
+
+- a4bb850: Add redis cache optimization
+
 ## 0.0.4
 
 ### Patch Changes
