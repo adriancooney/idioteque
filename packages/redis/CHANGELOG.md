@@ -1,5 +1,13 @@
 # @idioteque/redis
 
+## 0.0.4
+
+### Patch Changes
+
+- Add optimization to fetch all results ahead of time
+- Updated dependencies
+  - idioteque@0.0.7
+
 ## 0.0.3
 
 ### Patch Changes

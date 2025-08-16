@@ -1,5 +1,11 @@
 # idioteque
 
+## 0.0.7
+
+### Patch Changes
+
+- Add optimization to fetch all results ahead of time
+
 ## 0.0.6
 
 ### Patch Changes

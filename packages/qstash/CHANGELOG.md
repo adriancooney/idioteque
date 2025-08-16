@@ -1,5 +1,12 @@
 # @idioteque/qstash
 
+## 0.0.4
+
+### Patch Changes
+
+- Updated dependencies
+  - idioteque@0.0.7
+
 ## 0.0.3
 
 ### Patch Changes
