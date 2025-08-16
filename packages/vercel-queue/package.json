@@ -1,6 +1,6 @@
 {
   "name": "@idioteque/vercel-queue",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "Vercel Queue adapter for idioteque worker library",
   "main": "dist/index.js",
   "module": "dist/index.mjs",

@@ -1,5 +1,11 @@
 # @idioteque/vercel-queue
 
+## 0.0.6
+
+### Patch Changes
+
+- Add namespace
+
 ## 0.0.5
 
 ### Patch Changes
