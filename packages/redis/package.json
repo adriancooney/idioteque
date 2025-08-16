@@ -1,6 +1,6 @@
 {
   "name": "@idioteque/redis",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "Redis store implementation for idioteque",
   "main": "dist/index.js",
   "module": "dist/index.mjs",

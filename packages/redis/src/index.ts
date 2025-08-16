@@ -29,10 +29,15 @@ export function createRedisStore(redis: RedisImpl): WorkerStore {
       }
 
       return Object.fromEntries(
-        Object.entries(results).map(([key, value]) => [
-          key,
-          JSON.parse(value as string),
-        ])
+        Object.entries(results).map(([key, value]) => {
+          try {
+            return [key, JSON.parse(value as string)];
+          } catch (error) {
+            throw new Error(
+              `Failed to parse JSON for Redis key "${executionId}-results" field "${key}": ${error instanceof Error ? error.message : String(error)}. Raw value: "${value}"`
+            );
+          }
+        })
       );
     },
 
@@ -40,7 +45,13 @@ export function createRedisStore(redis: RedisImpl): WorkerStore {
       const result = await redis.hget(`${executionId}-results`, taskId);
 
       if (typeof result === "string") {
-        return JSON.parse(result);
+        try {
+          return JSON.parse(result);
+        } catch (error) {
+          throw new Error(
+            `Failed to parse JSON for Redis key "${executionId}-results" field "${taskId}": ${error instanceof Error ? error.message : String(error)}. Raw value: "${result}"`
+          );
+        }
       }
 
       return undefined;
