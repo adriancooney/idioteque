@@ -1,5 +1,11 @@
 # idioteque
 
+## 0.0.6
+
+### Patch Changes
+
+- Fix vercel queue namespace"
+
 ## 0.0.5
 
 ### Patch Changes

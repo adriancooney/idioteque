@@ -1,5 +1,13 @@
 # @idioteque/vercel-queue
 
+## 0.0.7
+
+### Patch Changes
+
+- Fix vercel queue namespace"
+- Updated dependencies
+  - idioteque@0.0.6
+
 ## 0.0.6
 
 ### Patch Changes
