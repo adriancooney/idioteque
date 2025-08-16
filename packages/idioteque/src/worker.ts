@@ -304,7 +304,10 @@ export function createWorker<T extends { type: string }, U>(
           await store.beginExecution(context.executionId);
         }
 
-        const executionCache = {};
+        const executionCache = store.getExecutionTaskResults
+          ? await store.getExecutionTaskResults(context.executionId)
+          : {};
+
         const queue: WorkerExecutionContext[] = [context];
         let head: WorkerExecutionContext | undefined;
 

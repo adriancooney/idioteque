@@ -813,4 +813,94 @@ describe("worker", () => {
       );
     });
   });
+
+  describe("optimization: fetch all execution results ahead of time", () => {
+    let getExecutionTaskResultSpy: jest.SpyInstance;
+    let getExecutionTaskResultsSpy: jest.SpyInstance;
+    let step1Mock: JestMockAny;
+    let step2Mock: JestMockAny;
+    let optimizationWorker: Worker<{ type: "test" }>;
+    let optimizationMount: WorkerMount<{ type: "test" }>;
+
+    describe("with getExecutionTaskResults method", () => {
+      let store: MemoryStore;
+      let executeCallbackMock: JestMockAny;
+
+      beforeEach(() => {
+        step1Mock = jest.fn(() => "value-1");
+        step2Mock = jest.fn(() => "value-2");
+        executeCallbackMock = jest.fn();
+
+        store = createMemoryStore();
+        getExecutionTaskResultSpy = jest.spyOn(store, "getExecutionTaskResult");
+        getExecutionTaskResultsSpy = jest.spyOn(
+          store,
+          "getExecutionTaskResults"
+        );
+
+        optimizationWorker = createWorker({
+          eventsSchema: z.discriminatedUnion("type", [
+            z.object({
+              type: z.literal("test"),
+            }),
+          ]),
+          store,
+          dispatcher: { dispatch: jest.fn() },
+          logger: debugWorkerLogger,
+        });
+
+        optimizationMount = optimizationWorker.mount({
+          functions: [
+            optimizationWorker.createFunction(
+              "testFunc",
+              "test",
+              async (event, { execute }) => {
+                const result1 = await execute("step1", step1Mock);
+                const result2 = await execute("step2", step2Mock);
+                executeCallbackMock(result1, result2);
+              }
+            ),
+          ],
+          executionMode: "UNTIL_ERROR",
+        });
+      });
+
+      afterEach(() => {
+        store.clear();
+        jest.restoreAllMocks();
+      });
+
+      it("should call getExecutionTaskResults once instead of multiple getExecutionTaskResult calls", async () => {
+        store.setState({
+          execution1: {
+            testFunc: { transaction: true },
+            "testFunc:step1": { value: "cached-step1-result" },
+            "testFunc:step2": { value: "cached-step2-result" },
+          },
+        });
+
+        await optimizationMount.execute(
+          { type: "test" },
+          {
+            timestamp: Date.now(),
+            executionId: "execution1",
+            taskId: "testFunc",
+          }
+        );
+
+        expect(getExecutionTaskResultsSpy).toHaveBeenCalledTimes(1);
+        expect(getExecutionTaskResultsSpy).toHaveBeenCalledWith("execution1");
+
+        expect(getExecutionTaskResultSpy).toHaveBeenCalledTimes(0);
+
+        expect(step1Mock).not.toHaveBeenCalled();
+        expect(step2Mock).not.toHaveBeenCalled();
+
+        expect(executeCallbackMock).toHaveBeenCalledWith(
+          "cached-step1-result",
+          "cached-step2-result"
+        );
+      });
+    });
+  });
 });

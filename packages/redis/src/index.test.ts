@@ -1,6 +1,6 @@
 import type { WorkerStore } from "idioteque";
 import { Redis } from "ioredis";
-import { createRedisStore } from "./store";
+import { createRedisStore } from "./";
 
 describe(createRedisStore, () => {
   let redis: Redis;
@@ -167,6 +167,32 @@ describe(createRedisStore, () => {
     });
   });
 
+  describe("getExecutionTaskResults", () => {
+    it("should return all task results for an execution", async () => {
+      const hash = {
+        "task-1": JSON.stringify({ message: "success", count: 42 }),
+        "task-2": JSON.stringify("simple string"),
+        "task-3": JSON.stringify(null),
+      };
+
+      await redis.hset("exec1-results", hash);
+
+      const results = await store.getExecutionTaskResults?.("exec1");
+
+      expect(results).toEqual({
+        "task-1": { message: "success", count: 42 },
+        "task-2": "simple string",
+        "task-3": null,
+      });
+    });
+
+    it("should return empty object when no results exist", async () => {
+      const results = await store.getExecutionTaskResults?.("exec-nonexistent");
+
+      expect(results).toEqual({});
+    });
+  });
+
   describe("disposeExecution", () => {
     it("should delete all execution-related keys", async () => {
       const executionId = "exec-1";
@@ -291,6 +317,49 @@ describe(createRedisStore, () => {
         expect(await store.getExecutionTaskResult(executionId, taskId)).toBe(
           `result-${taskId}`
         );
+      }
+
+      const allResults =
+        (await store.getExecutionTaskResults?.(executionId)) || {};
+      expect(Object.keys(allResults)).toHaveLength(5);
+
+      for (const taskId of tasks) {
+        expect(allResults[taskId]).toBe(`result-${taskId}`);
+      }
+    });
+
+    it("should use getExecutionTaskResults to retrieve all results at once", async () => {
+      const executionId = "exec-1";
+
+      await store.beginExecution(executionId);
+
+      const taskResults = {
+        "task-1": { type: "object", value: 123 },
+        "task-2": "string result",
+        "task-3": [1, 2, 3],
+        "task-4": true,
+        "task-5": null,
+      };
+
+      for (const [taskId, result] of Object.entries(taskResults)) {
+        await store.beginExecutionTask(executionId, taskId);
+        await store.commitExecutionTaskResult(executionId, taskId, result);
+      }
+
+      const allResults =
+        (await store.getExecutionTaskResults?.(executionId)) || {};
+
+      expect(Object.keys(allResults)).toHaveLength(5);
+      expect(allResults).toEqual({
+        "task-1": taskResults["task-1"],
+        "task-2": taskResults["task-2"],
+        "task-3": taskResults["task-3"],
+        "task-4": taskResults["task-4"],
+        "task-5": taskResults["task-5"],
+      });
+
+      for (const [taskId, expectedResult] of Object.entries(taskResults)) {
+        expect(allResults[taskId]).toEqual(expectedResult);
       }
     });
   });

@@ -20,6 +20,40 @@ module.exports = {
       ],
     },
     {
+      displayName: "redis",
+      rootDir: "<rootDir>/packages/redis",
+      testMatch: [
+        "<rootDir>/src/**/__tests__/**/*.ts",
+        "<rootDir>/src/**/?(*.)+(spec|test).ts",
+      ],
+      transform: {
+        "^.+\\.ts$": "ts-jest",
+      },
+      collectCoverageFrom: [
+        "src/**/*.ts",
+        "!src/**/*.d.ts",
+        "!src/**/*.test.ts",
+        "!src/**/*.spec.ts",
+      ],
+    },
+    {
+      displayName: "qstash",
+      rootDir: "<rootDir>/packages/qstash",
+      testMatch: [
+        "<rootDir>/src/**/__tests__/**/*.ts",
+        "<rootDir>/src/**/?(*.)+(spec|test).ts",
+      ],
+      transform: {
+        "^.+\\.ts$": "ts-jest",
+      },
+      collectCoverageFrom: [
+        "src/**/*.ts",
+        "!src/**/*.d.ts",
+        "!src/**/*.test.ts",
+        "!src/**/*.spec.ts",
+      ],
+    },
+    {
       displayName: "vercel-queue",
       rootDir: "<rootDir>/packages/vercel-queue",
       testMatch: [

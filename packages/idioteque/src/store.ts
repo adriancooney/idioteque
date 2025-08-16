@@ -20,6 +20,16 @@ export function createMemoryStore(): MemoryStore {
     async beginExecution(executionId) {
       store[executionId] = {};
     },
+    async getExecutionTaskResults(executionId) {
+      return Object.fromEntries(
+        Object.entries(store[executionId] || {})
+          .filter(
+            (entry): entry is [key: string, value: { value: unknown }] =>
+              entry[1].value
+          )
+          .map(([key, entry]) => [key, entry.value])
+      );
+    },
     async getExecutionTaskResult(executionId, taskId) {
       return store[executionId]?.[taskId]?.value;
     },
@@ -68,6 +78,7 @@ export function createFileSystemStore(storeDir: string): WorkerStore {
     async beginExecution(executionId) {
       await fs.mkdir(getExecutionDir(executionId), { recursive: true });
     },
+
     async getExecutionTaskResult(executionId, taskId) {
       try {
         const data = await fs.readFile(

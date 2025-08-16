@@ -38,6 +38,9 @@ export interface WorkerStore {
   beginExecution(
     executionId: WorkerExecutionContext["executionId"]
   ): Promise<void>;
+  getExecutionTaskResults?(executionId: string): Promise<{
+    [taskId: string]: unknown;
+  }>;
   getExecutionTaskResult(
     executionId: WorkerExecutionContext["executionId"],
     taskId: Exclude<WorkerExecutionContext["taskId"], undefined>
