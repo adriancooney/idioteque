@@ -99,8 +99,6 @@ export function createWorker<T extends { type: string }, U>(
   ): Promise<unknown | undefined> {
     const cachedValue = executionCache[taskId];
 
-    console.log({ taskId, cachedValue });
-
     if (cachedValue !== undefined) {
       return cachedValue;
     }
@@ -115,7 +113,6 @@ export function createWorker<T extends { type: string }, U>(
     value: unknown
   ): Promise<void> {
     executionCache[taskId] = value;
-    console.log("cached", taskId);
 
     await store.commitExecutionTaskResult(executionId, taskId, value);
   }

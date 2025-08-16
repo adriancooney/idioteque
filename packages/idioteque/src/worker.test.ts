@@ -734,6 +734,7 @@ describe("worker", () => {
   describe("optimization: cache results of tasks in memory", () => {
     let getExecutionTaskResultSpy: jest.SpyInstance;
     let commitExecutionTaskResultSpy: jest.SpyInstance;
+    let step1Mock: JestMockAny;
     let store: MemoryStore;
     let optimizationWorker: Worker<{ type: "test" }>;
     let optimizationMount: WorkerMount<{ type: "test" }>;
@@ -745,6 +746,7 @@ describe("worker", () => {
         store,
         "commitExecutionTaskResult"
       );
+      step1Mock = jest.fn(() => "value-1");
 
       optimizationWorker = createWorker({
         eventsSchema: z.discriminatedUnion("type", [
@@ -763,7 +765,7 @@ describe("worker", () => {
             "testFunc",
             "test",
             async (event, { execute }) => {
-              const result1 = await execute("step1", async () => "value-1");
+              const result1 = await execute("step1", step1Mock);
               const result2 = await execute("step2", async () => "value-2");
 
               return { result1, result2 };
@@ -792,6 +794,7 @@ describe("worker", () => {
         }
       );
 
+      expect(step1Mock).toHaveBeenCalledTimes(1);
       expect(getExecutionTaskResultSpy).toHaveBeenCalledTimes(3);
       expect(getExecutionTaskResultSpy).toHaveBeenNthCalledWith(
         1,

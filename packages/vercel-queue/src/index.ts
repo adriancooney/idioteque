@@ -18,7 +18,7 @@ export function createVercelQueueDispatcher({
 } {
   return {
     async dispatch(data) {
-      await send(`idioteque-message:${namespace}`, { data });
+      await send(`idioteque-message-${namespace}`, { data });
     },
 
     mount<T extends WorkerEvent>(
@@ -29,7 +29,7 @@ export function createVercelQueueDispatcher({
 
       return {
         POST: handleCallback({
-          [`idioteque-message:${namespace}`]: {
+          [`idioteque-message-${namespace}`]: {
             worker: (message: any) => process(message.data),
           },
         }),
