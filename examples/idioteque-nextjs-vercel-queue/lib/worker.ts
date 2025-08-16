@@ -15,7 +15,9 @@ const EventsSchema = z.discriminatedUnion("type", [
   }),
 ]);
 
-export const dispatcher = createVercelQueueDispatcher();
+export const dispatcher = createVercelQueueDispatcher({
+  namespace: "ecommerce",
+});
 
 export const worker = createWorker({
   eventsSchema: EventsSchema,

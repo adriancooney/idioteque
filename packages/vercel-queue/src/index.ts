@@ -6,7 +6,11 @@ import type {
   WorkerMountOptions,
 } from "idioteque";
 
-export function createVercelQueueDispatcher(): WorkerDispatcher & {
+export function createVercelQueueDispatcher({
+  namespace,
+}: {
+  namespace: string;
+}): WorkerDispatcher & {
   mount: <T extends WorkerEvent>(
     worker: Worker<T>,
     options: WorkerMountOptions
@@ -14,7 +18,7 @@ export function createVercelQueueDispatcher(): WorkerDispatcher & {
 } {
   return {
     async dispatch(data) {
-      await send("idioteque-message", { data });
+      await send(`idioteque-message:${namespace}`, { data });
     },
 
     mount<T extends WorkerEvent>(
@@ -25,7 +29,7 @@ export function createVercelQueueDispatcher(): WorkerDispatcher & {
 
       return {
         POST: handleCallback({
-          "idioteque-message": {
+          [`idioteque-message:${namespace}`]: {
             worker: (message: any) => process(message.data),
           },
         }),
