@@ -1,5 +1,11 @@
 # @idioteque/redis
 
+## 0.0.7
+
+### Patch Changes
+
+- 81361f3: Fix @upstash/redis client quirk
+
 ## 0.0.6
 
 ### Patch Changes

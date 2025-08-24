@@ -1,35 +1,42 @@
 import type { WorkerStore } from "idioteque";
 
-interface RedisImpl {
-  set(key: string, value: string): Promise<unknown>;
-  get(key: string): Promise<unknown>;
+export interface RedisImpl {
+  set(key: string, value: string): Promise<any>;
+  get(key: string): Promise<unknown | null>;
   hset: (
     key: string,
     kv: {
       [field: string]: string;
     }
-  ) => Promise<number>;
-  hget: (key: string, field: string) => Promise<unknown>;
-  hdel: (key: string, field: string) => Promise<unknown>;
-  hgetall: (key: string) => Promise<{ [key: string]: unknown } | null>;
-  del: (key: string) => Promise<unknown>;
+  ) => Promise<any>;
+  hget: (key: string, field: string) => Promise<unknown | null>;
+  hdel: (key: string, field: string) => Promise<any>;
+  hgetall: (key: string) => Promise<Record<string, unknown> | string[] | null>; // Some clients returns [key, value, key, value, ...]
+  del: (key: string) => Promise<any>;
 }
 
-export function createRedisStore(redis: RedisImpl): WorkerStore {
+export function createRedisStore(
+  redis: RedisImpl,
+  options: { ttl?: number } = {}
+): WorkerStore {
   return {
     async beginExecution(executionId) {
       await redis.set(executionId, "true");
     },
 
     async getExecutionTaskResults(executionId) {
-      const results = await redis.hgetall(`${executionId}-results`);
+      let result = await redis.hgetall(`${executionId}-results`);
 
-      if (!results) {
+      if (!result) {
         return {};
       }
 
+      if (Array.isArray(result)) {
+        result = Object.fromEntries(pair(result));
+      }
+
       return Object.fromEntries(
-        Object.entries(results).map(([key, value]) => {
+        Object.entries(result).map(([key, value]) => {
           try {
             return [key, JSON.parse(value as string)];
           } catch (error) {
@@ -83,4 +90,11 @@ export function createRedisStore(redis: RedisImpl): WorkerStore {
       ]);
     },
   };
+}
+
+function pair<T>(values: T[]): [T, T][] {
+  return Array.from({ length: Math.floor(values.length / 2) }, (_, i) => [
+    values[i * 2],
+    values[i * 2 + 1],
+  ]);
 }
