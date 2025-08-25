@@ -20,7 +20,6 @@ export function createWorker<T extends { type: string }, U>(
 
   let {
     eventsSchema,
-    concurrency,
     onError,
     metrics = defaultWorkerMetrics,
     logger = defaultWorkerLogger,
@@ -236,7 +235,6 @@ export function createWorker<T extends { type: string }, U>(
 
     configure(options: Partial<WorkerOptions<T>>) {
       eventsSchema = options.eventsSchema || eventsSchema;
-      concurrency = options.concurrency || concurrency;
       onError = options.onError || onError;
       metrics = options.metrics || metrics;
       logger = options.logger || logger;
@@ -247,7 +245,6 @@ export function createWorker<T extends { type: string }, U>(
     getOptions(): WorkerOptions<T> {
       return {
         eventsSchema,
-        concurrency,
         onError,
         metrics,
         logger,

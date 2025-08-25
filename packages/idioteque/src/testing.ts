@@ -1,3 +1,4 @@
+import { createMemoryStore } from "./store";
 import type {
   Worker,
   WorkerFunction,
@@ -16,7 +17,7 @@ export function setupWorker<T extends { type: string }>(
     _workerOptions = worker.getOptions();
     mount = worker.mount({ functions });
     worker.configure({
-      concurrency: 1,
+      store: createMemoryStore(),
       dispatcher: {
         async dispatch(data) {
           await mount.process(data);

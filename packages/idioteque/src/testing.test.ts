@@ -1,10 +1,10 @@
 import z from "zod";
 import { debugWorkerLogger } from "./logger";
 import { createMemoryStore } from "./store";
-import { setupWorker } from "./testing-utils";
+import { setupWorker } from "./testing";
 import { createWorker } from "./worker";
 
-describe("testing-utils", () => {
+describe("testing", () => {
   const dispatcherMock = jest.fn();
   const getOrderMock = jest
     .fn()
