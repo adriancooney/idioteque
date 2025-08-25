@@ -13,7 +13,7 @@ A TypeScript-first async worker library with resumable execution. Build fault-to
 
 ### 1. Install idioteque
 ```bash
-npm install idioteque
+npm install idioteque @idioteque/redis @idioteque/qstash
 ```
 
 ### 2. Create your worker
@@ -25,16 +25,19 @@ import { createWorker } from 'idioteque';
 import { createRedisStore } from '@idioteque/redis';
 import { createQStashDispatcher } from '@idioteque/qstash';
 
+// Define your event schema
 const EventSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('user.signup'), userId: z.string() }),
   z.object({ type: z.literal('email.send'), to: z.string(), subject: z.string() })
 ]);
 
+// Create your dispatcher - uses qstash to guarantee delivery and execution
 export const dispatcher = createQStashDispatcher({
   mountUrl: `https://${process.env.VERCEL_URL}/api/worker`,
   token: process.env.QSTASH_TOKEN
 })
 
+// Create worker with Redis store for state
 export const worker = createWorker({
   eventsSchema: EventSchema,
   store: createRedisStore(new Redis(process.env.REDIS_URL)),
@@ -103,7 +106,7 @@ Full e-commerce workflow using QStash for guaranteed message delivery. Features:
 - Redis state persistence
 - Resumable multi-step workflows
 
-### 🚀 [Vercel Queue + Next.js Example](./examples/idioteque-nextjs-vercel-queue) 
+### 🚀 [Vercel Queue + Next.js Example](./examples/idioteque-nextjs-vercel-queue)
 Same e-commerce workflow using Vercel's managed queue system. Features:
 - Vercel Queue integration for seamless deployment
 - Automatic scaling with your Vercel functions
