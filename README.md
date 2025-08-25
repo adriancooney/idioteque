@@ -14,13 +14,11 @@ A TypeScript-first async worker library with resumable execution. Build fault-to
 ### 1. Install idioteque
 ```bash
 npm install idioteque
-# Or with your preferred package manager
-pnpm add idioteque
-yarn add idioteque
 ```
 
 ### 2. Create your worker
 ```typescript
+// /lib/worker.ts
 import { z } from 'zod';
 import { Redis } from 'ioredis';
 import { createWorker } from 'idioteque';
@@ -33,7 +31,7 @@ const EventSchema = z.discriminatedUnion('type', [
 ]);
 
 export const dispatcher = createQStashDispatcher({
-  mountUrl: `https://${VERCEL_URL}/api/worker`,
+  mountUrl: `https://${process.env.VERCEL_URL}/api/worker`,
   token: process.env.QSTASH_TOKEN
 })
 
@@ -46,7 +44,8 @@ export const worker = createWorker({
 
 ### 2. Define a function
 ```typescript
-import { worker } from './worker';
+// /lib/functions/process-user-signup.ts
+import { worker } from '@/lib/worker';
 
 const processUserSignup = worker.createFunction(
   'process-user-signup',
@@ -73,8 +72,9 @@ const processUserSignup = worker.createFunction(
 
 ### 4. Mount the worker
 ```typescript
-import { processUserSignup } from './functions';
-import { dispatcher } from './worker';
+// /app/api/worker/route.ts
+import { processUserSignup } from '@/lib/functions/process-user-signup';
+import { dispatcher } from '@/lib/worker';
 
 export const { POST } = dispatcher.mount(worker, {
   functions: [processUserSignup],
@@ -83,7 +83,7 @@ export const { POST } = dispatcher.mount(worker, {
 
 ### 5. Trigger a function
 ```typescript
-import { worker } from './worker';
+import { worker } from '@/lib/worker';
 
 // Publish an event to trigger the function
 await worker.publish({
@@ -91,6 +91,26 @@ await worker.publish({
   userId: 'user-123'
 });
 ```
+
+## Examples
+
+Complete example applications demonstrating different idioteque configurations:
+
+### 📦 [QStash + Next.js Example](./examples/idioteque-nextjs-qstash)
+Full e-commerce workflow using QStash for guaranteed message delivery. Features:
+- Order processing with payment, inventory, and email notifications
+- Upstash QStash integration for reliable job delivery
+- Redis state persistence
+- Resumable multi-step workflows
+
+### 🚀 [Vercel Queue + Next.js Example](./examples/idioteque-nextjs-vercel-queue) 
+Same e-commerce workflow using Vercel's managed queue system. Features:
+- Vercel Queue integration for seamless deployment
+- Automatic scaling with your Vercel functions
+- Built-in monitoring and observability
+- Zero infrastructure management
+
+Both examples show identical business logic with different infrastructure choices - perfect for comparing approaches or migrating between systems.
 
 ## Concepts
 
