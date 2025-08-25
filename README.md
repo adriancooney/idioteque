@@ -1,5 +1,5 @@
-# idioteque ⚡
-A TypeScript-first async worker library with resumable execution. Build fault-tolerant workflows that survive failures and restart exactly where they left off. 🚀
+# idioteque
+A TypeScript-first async worker library with resumable execution. Build fault-tolerant workflows that survive failures and restart exactly where they left off.
 
 ## Features
 - 🔄 **Resumable execution** - Tasks can be interrupted and resumed from where they left off
@@ -171,3 +171,6 @@ test('workflow execution', async () => {
 - **`worker.mount`** - Registers functions and returns execution interface
 - **`worker.publish`** - Publishes events to trigger function execution
 - **`worker.configure`** - Updates worker configuration at runtime
+
+#### Why is it called `idioteque`?
+It's named after a great Radiohead song because all reasonable, description names and acyronyms of those names are taken on `npm`.
