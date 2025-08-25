@@ -7,6 +7,9 @@ type TestRedisImpl = RedisImpl & {
   hexists: (key: string, field: string) => Promise<number>;
   exists: (key: string) => Promise<number>;
   flushall: () => Promise<any>;
+  ttl: (key: string) => Promise<number>;
+  // biome-ignore lint/suspicious/noConfusingVoidType: <explanation>
+  disconnect?: () => Promise<any> | void;
 };
 
 interface TestRedisClient {
@@ -296,6 +299,94 @@ describe(createRedisStore, () => {
             0
           );
           expect(await getClient().exists(`${executionId}-results`)).toBe(0);
+        });
+      });
+
+      describe("TTL functionality", () => {
+        it("should set TTL on execution key when ttl option is provided", async () => {
+          const ttl = 5000; // 5 seconds in ms
+          const storeWithTTL = createRedisStore(getClient(), { ttl });
+          const executionId = "exec-ttl";
+
+          await storeWithTTL.beginExecution(executionId);
+
+          // Check that the key exists
+          expect(await getClient().get(executionId)).toBe("true");
+
+          // Check that TTL is set (should be around 5 seconds, allowing some variance)
+          const keyTTL = await getClient().ttl(executionId);
+          expect(keyTTL).toBeGreaterThan(0);
+          expect(keyTTL).toBeLessThanOrEqual(5);
+        });
+
+        it("should not set TTL when ttl option is not provided", async () => {
+          const storeWithoutTTL = createRedisStore(getClient());
+          const executionId = "exec-no-ttl";
+
+          await storeWithoutTTL.beginExecution(executionId);
+
+          // Check that the key exists
+          expect(await getClient().get(executionId)).toBe("true");
+
+          // Check that no TTL is set (-1 means no expiration)
+          const keyTTL = await getClient().ttl(executionId);
+          expect(keyTTL).toBe(-1);
+        });
+
+        it("should set TTL on transaction keys", async () => {
+          const ttl = 3000; // 3 seconds in ms
+          const storeWithTTL = createRedisStore(getClient(), { ttl });
+          const executionId = "exec-transaction-ttl";
+
+          await storeWithTTL.beginExecutionTask(executionId, "task-1");
+
+          // Check that the transaction key exists
+          expect(
+            await getClient().hget(`${executionId}-transactions`, "task-1")
+          ).toBe("true");
+
+          // Check that TTL is set on the hash
+          const keyTTL = await getClient().ttl(`${executionId}-transactions`);
+          expect(keyTTL).toBeGreaterThan(0);
+          expect(keyTTL).toBeLessThanOrEqual(3);
+        });
+
+        it("should set TTL on result keys", async () => {
+          const ttl = 4000; // 4 seconds in ms
+          const storeWithTTL = createRedisStore(getClient(), { ttl });
+          const executionId = "exec-result-ttl";
+          const taskResult = { data: "test" };
+
+          await storeWithTTL.commitExecutionTaskResult(
+            executionId,
+            "task-1",
+            taskResult
+          );
+
+          // Check that the result key exists
+          const result = await getClient().hget(
+            `${executionId}-results`,
+            "task-1"
+          );
+          expect(JSON.parse(result as string)).toEqual(taskResult);
+
+          // Check that TTL is set on the results hash
+          const keyTTL = await getClient().ttl(`${executionId}-results`);
+          expect(keyTTL).toBeGreaterThan(0);
+          expect(keyTTL).toBeLessThanOrEqual(4);
+        });
+
+        it("should handle millisecond to second conversion correctly", async () => {
+          const ttl = 2500; // 2.5 seconds in ms, should be rounded up to 3 seconds
+          const storeWithTTL = createRedisStore(getClient(), { ttl });
+          const executionId = "exec-conversion";
+
+          await storeWithTTL.beginExecution(executionId);
+
+          // Check that TTL is set to 3 seconds (rounded up from 2.5)
+          const keyTTL = await getClient().ttl(executionId);
+          expect(keyTTL).toBeGreaterThan(0);
+          expect(keyTTL).toBeLessThanOrEqual(3);
         });
       });
 

@@ -1,5 +1,11 @@
 # @idioteque/redis
 
+## 0.0.8
+
+### Patch Changes
+
+- Add redis ttl
+
 ## 0.0.7
 
 ### Patch Changes

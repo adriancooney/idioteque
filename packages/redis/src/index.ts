@@ -13,6 +13,7 @@ export interface RedisImpl {
   hdel: (key: string, field: string) => Promise<any>;
   hgetall: (key: string) => Promise<Record<string, unknown> | string[] | null>; // Some clients returns [key, value, key, value, ...]
   del: (key: string) => Promise<any>;
+  expire: (key: string, seconds: number) => Promise<any>;
 }
 
 export function createRedisStore(
@@ -22,6 +23,10 @@ export function createRedisStore(
   return {
     async beginExecution(executionId) {
       await redis.set(executionId, "true");
+
+      if (options.ttl) {
+        await redis.expire(executionId, Math.ceil(options.ttl / 1000));
+      }
     },
 
     async getExecutionTaskResults(executionId) {
@@ -73,14 +78,29 @@ export function createRedisStore(
       await redis.hset(`${executionId}-transactions`, {
         [taskId]: "true",
       });
+
+      if (options.ttl) {
+        await redis.expire(
+          `${executionId}-transactions`,
+          Math.ceil(options.ttl / 1000)
+        );
+      }
     },
     async commitExecutionTaskResult(executionId, taskId, value) {
-      await Promise.all([
+      const operations = [
         redis.hdel(`${executionId}-transactions`, taskId),
         redis.hset(`${executionId}-results`, {
           [taskId]: JSON.stringify(value),
         }),
-      ]);
+      ];
+
+      if (options.ttl) {
+        operations.push(
+          redis.expire(`${executionId}-results`, Math.ceil(options.ttl / 1000))
+        );
+      }
+
+      await Promise.all(operations);
     },
     async disposeExecution(executionId) {
       await Promise.all([
