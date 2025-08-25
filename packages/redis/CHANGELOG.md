@@ -1,5 +1,16 @@
 # @idioteque/redis
 
+## 0.1.0
+
+### Minor Changes
+
+- 0.1.0
+
+### Patch Changes
+
+- Updated dependencies
+  - idioteque@0.1.0
+
 ## 0.0.8
 
 ### Patch Changes

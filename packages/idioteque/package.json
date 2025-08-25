@@ -1,6 +1,6 @@
 {
   "name": "idioteque",
-  "version": "0.0.7",
+  "version": "0.1.0",
   "description": "Worker library for distributed task execution",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
